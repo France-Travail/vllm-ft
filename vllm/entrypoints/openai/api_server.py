@@ -456,6 +456,17 @@ async def show_available_models(raw_request: Request):
     return JSONResponse(content=models_.model_dump())
 
 
+@router.get("/v1/launch_arguments")
+async def show_launch_arguments(raw_request: Request):
+    arguments_ = raw_request.app.state.arguments
+    clean_arguments = {
+        key: value for key, value in arguments_.items() if isinstance(
+            value, (str, int, float, bool, list, dict, type(None))
+        )
+    }
+    return JSONResponse(content=clean_arguments)
+
+
 @router.get("/version")
 async def show_version():
     ver = {"version": VLLM_VERSION}
@@ -902,6 +913,9 @@ async def init_app_state(
         served_model_names = args.served_model_name
     else:
         served_model_names = [args.model]
+
+    if args.with_launch_arguments:
+        state.arguments = vars(args)
 
     if args.disable_log_requests:
         request_logger = None
