@@ -82,8 +82,6 @@ class OpenAIServing:
     ):
         super().__init__()
 
-        self.arguments = {}
-
         self.engine_client = engine_client
         self.model_config = model_config
         self.max_model_len = model_config.max_model_len
