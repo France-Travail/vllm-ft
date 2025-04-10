@@ -458,12 +458,16 @@ async def show_available_models(raw_request: Request):
 
 @router.get("/v1/launch_arguments")
 async def show_launch_arguments(raw_request: Request):
-    arguments_ = raw_request.app.state.arguments
-    clean_arguments = {
-        key: value for key, value in arguments_.items() if isinstance(
-            value, (str, int, float, bool, list, dict, type(None))
-        )
-    }
+    try :
+        arguments_ = raw_request.app.state.arguments
+        clean_arguments = {
+            key: value for key, value in arguments_.items() if isinstance(
+                value, (str, int, float, bool, list, dict, type(None))
+            )
+        }
+    except:
+        return JSONResponse(content={"detail":"Not Found"},
+                            status_code=404)
     return JSONResponse(content=clean_arguments)
 
 
