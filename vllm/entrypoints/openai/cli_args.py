@@ -295,6 +295,10 @@ def make_arg_parser(parser: FlexibleArgumentParser) -> FlexibleArgumentParser:
         help=
         "If set to True, enable tracking server_load_metrics in the app state."
     )
+    parser.add_argument("--enable-launch-arguments",
+                        action="store_true",
+                        default=False,
+                        help="Whether the route launch_arguments should display the launch arguments")
 
     return parser
 
