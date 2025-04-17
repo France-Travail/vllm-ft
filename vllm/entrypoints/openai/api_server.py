@@ -18,7 +18,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from functools import partial
 from http import HTTPStatus
-from typing import Annotated, Any, Optional
+from typing import Annotated, Optional, Union, Callable
 
 import prometheus_client
 import regex as re
@@ -516,6 +516,15 @@ async def show_available_models(raw_request: Request):
 
     models_ = await handler.show_available_models()
     return JSONResponse(content=models_.model_dump())
+
+
+@router.get("/v1/launch_arguments")
+async def show_launch_arguments(raw_request: Request):
+    if raw_request.app.state.arguments is None:
+        return base(raw_request).create_error_response(
+            message="Launch arguments is not enabled")
+    else:
+        return JSONResponse(content=raw_request.app.state.arguments)
 
 
 @router.get("/version")
@@ -1129,6 +1138,13 @@ async def init_app_state(
         served_model_names = args.served_model_name
     else:
         served_model_names = [args.model]
+
+    if args.enable_launch_arguments:
+        clean_arguments = {key: value.__name__ if isinstance(value, Callable) else value
+                           for key, value in vars(args).items()}
+        state.arguments = clean_arguments.copy()
+    else:
+        state.arguments = None
 
     if args.disable_log_requests:
         request_logger = None
