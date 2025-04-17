@@ -355,6 +355,11 @@ def make_arg_parser(parser: FlexibleArgumentParser) -> FlexibleArgumentParser:
         help="Launch a gRPC server instead of the HTTP OpenAI-compatible "
         "server. Requires: pip install vllm[grpc].",
     )
+    parser.add_argument("--enable-launch-arguments",
+                        action="store_true",
+                        default=False,
+                        help="Whether the route launch_arguments should display the launch arguments")
+    
     parser = FrontendArgs.add_cli_args(parser)
     parser = AsyncEngineArgs.add_cli_args(parser)
 
