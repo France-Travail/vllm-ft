@@ -307,6 +307,15 @@ async def show_available_models(raw_request: Request):
     return JSONResponse(content=models_.model_dump())
 
 
+@router.get("/v1/launch_arguments")
+async def show_launch_arguments(raw_request: Request):
+    if raw_request.app.state.arguments is None:
+        return base(raw_request).create_error_response(
+            message="Launch arguments is not enabled")
+    else:
+        return JSONResponse(content=raw_request.app.state.arguments)
+
+
 @router.get("/version")
 async def show_version():
     ver = {"version": VLLM_VERSION}
@@ -1002,6 +1011,13 @@ async def init_app_state(
         served_model_names = args.served_model_name
     else:
         served_model_names = [args.model]
+
+    if args.enable_launch_arguments:
+        clean_arguments = {key: value.__name__ if isinstance(value, Callable) else value
+                           for key, value in vars(args).items()}
+        state.arguments = clean_arguments.copy()
+    else:
+        state.arguments = None
 
     if args.enable_log_requests:
         request_logger = RequestLogger(max_log_len=args.max_log_len)
