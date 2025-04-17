@@ -105,6 +105,7 @@ class RemoteOpenAIServer:
         args = parser.parse_args(["--model", model, *vllm_serve_args])
         self.host = str(args.host or 'localhost')
         self.port = int(args.port)
+        self.args = args
 
         self.show_hidden_metrics = \
             args.show_hidden_metrics_for_version is not None
