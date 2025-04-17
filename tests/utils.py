@@ -159,6 +159,7 @@ class RemoteOpenAIServer:
         else:
             self.host = str(args.host or "127.0.0.1")
             self.port = int(args.port)
+        self.args = args
 
         self.show_hidden_metrics = args.show_hidden_metrics_for_version is not None
 
