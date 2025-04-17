@@ -259,6 +259,11 @@ def make_arg_parser(parser: FlexibleArgumentParser) -> FlexibleArgumentParser:
         help="Read CLI options from a config file. "
         "Must be a YAML with the following options: "
         "https://docs.vllm.ai/en/latest/configuration/serve_args.html")
+    parser.add_argument("--enable-launch-arguments",
+                        action="store_true",
+                        default=False,
+                        help="Whether the route launch_arguments should display the launch arguments")
+    
     parser = FrontendArgs.add_cli_args(parser)
     parser = AsyncEngineArgs.add_cli_args(parser)
 
