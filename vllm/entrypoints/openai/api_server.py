@@ -50,6 +50,7 @@ from vllm.entrypoints.logger import RequestLogger
 from vllm.entrypoints.openai.cli_args import (log_non_default_args,
                                               make_arg_parser,
                                               validate_parsed_serve_args)
+from vllm.entrypoints.openai import utils_ft
 # yapf conflicts with isort for this block
 # yapf: disable
 from vllm.entrypoints.openai.protocol import (ChatCompletionRequest,
@@ -105,6 +106,7 @@ from vllm.utils import (Device, FlexibleArgumentParser, get_open_zmq_ipc_path,
                         is_valid_ipv6_address, set_ulimit)
 from vllm.v1.metrics.prometheus import get_prometheus_registry
 from vllm.version import __version__ as VLLM_VERSION
+from vllm.version import ORIGINAL_VLLM_VERSION
 
 prometheus_multiproc_dir: tempfile.TemporaryDirectory
 
@@ -532,6 +534,21 @@ async def show_launch_arguments(raw_request: Request):
             message="Launch arguments is not enabled")
     else:
         return JSONResponse(content=raw_request.app.state.arguments)
+
+
+@router.get("/v1/info")
+async def get_info(raw_request: Request):
+    model_name = None
+    if raw_request.app.state.served_model_names:
+        model_name = raw_request.app.state.served_model_names[0]
+    content = {
+        "application": "vllm_ft",
+        "version": utils_ft.get_package_version(),
+        "vllm_version": ORIGINAL_VLLM_VERSION,
+        "model_name": model_name,
+        "max_length": raw_request.app.state.model_config.max_model_len
+    }
+    return JSONResponse(content=content)
 
 
 @router.get("/version")
@@ -1233,6 +1250,7 @@ async def init_app_state(
         served_model_names = args.served_model_name
     else:
         served_model_names = [args.model]
+    state.served_model_names = served_model_names
 
     if args.enable_launch_arguments:
         clean_arguments = {key: value.__name__ if isinstance(value, Callable) else value
@@ -1374,6 +1392,7 @@ async def init_app_state(
 
     state.enable_server_load_tracking = args.enable_server_load_tracking
     state.server_load_metrics = 0
+    state.model_config = model_config
 
 
 def create_server_socket(addr: tuple[str, int]) -> socket.socket:
