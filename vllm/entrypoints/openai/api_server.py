@@ -62,6 +62,7 @@ from vllm.utils.network_utils import is_valid_ipv6_address
 from vllm.utils.system_utils import decorate_logs, set_ulimit
 from vllm.v1.engine.exceptions import EngineDeadError, EngineGenerateError
 from vllm.version import __version__ as VLLM_VERSION
+from vllm.version import ORIGINAL_VLLM_VERSION
 
 prometheus_multiproc_dir: tempfile.TemporaryDirectory
 
@@ -332,6 +333,7 @@ async def init_app_state(
         served_model_names = args.served_model_name
     else:
         served_model_names = [args.model]
+    state.served_model_names = served_model_names
 
     if args.enable_launch_arguments:
         clean_arguments = {key: value.__name__ if isinstance(value, Callable) else value
@@ -406,6 +408,7 @@ async def init_app_state(
 
     state.enable_server_load_tracking = args.enable_server_load_tracking
     state.server_load_metrics = 0
+    state.model_config = model_config
 
 
 async def init_render_app_state(
