@@ -13,6 +13,9 @@ except Exception as e:
     __version_tuple__ = (0, 0, __version__)
 
 
+ORIGINAL_VLLM_VERSION = "v0.8.4"
+
+
 def _prev_minor_version_was(version_str):
     """Check whether a given version matches the previous minor version.
 
