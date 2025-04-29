@@ -59,6 +59,7 @@ from vllm.entrypoints.openai.protocol import (
     TranslationRequest,
     TranslationResponseVariant,
 )
+from vllm.entrypoints.openai import utils_ft
 from vllm.entrypoints.openai.serving_chat import OpenAIServingChat
 from vllm.entrypoints.openai.serving_completion import OpenAIServingCompletion
 from vllm.entrypoints.openai.serving_engine import OpenAIServing
@@ -102,6 +103,7 @@ from vllm.utils.gc_utils import freeze_gc_heap
 from vllm.utils.network_utils import is_valid_ipv6_address
 from vllm.utils.system_utils import decorate_logs, set_ulimit
 from vllm.version import __version__ as VLLM_VERSION
+from vllm.version import ORIGINAL_VLLM_VERSION
 
 prometheus_multiproc_dir: tempfile.TemporaryDirectory
 
@@ -314,6 +316,21 @@ async def show_launch_arguments(raw_request: Request):
             message="Launch arguments is not enabled")
     else:
         return JSONResponse(content=raw_request.app.state.arguments)
+
+
+@router.get("/v1/info")
+async def get_info(raw_request: Request):
+    model_name = None
+    if raw_request.app.state.served_model_names:
+        model_name = raw_request.app.state.served_model_names[0]
+    content = {
+        "application": "vllm_ft",
+        "version": utils_ft.get_package_version(),
+        "vllm_version": ORIGINAL_VLLM_VERSION,
+        "model_name": model_name,
+        "max_length": raw_request.app.state.model_config.max_model_len
+    }
+    return JSONResponse(content=content)
 
 
 @router.get("/version")
@@ -1011,6 +1028,7 @@ async def init_app_state(
         served_model_names = args.served_model_name
     else:
         served_model_names = [args.model]
+    state.served_model_names = served_model_names
 
     if args.enable_launch_arguments:
         clean_arguments = {key: value.__name__ if isinstance(value, Callable) else value
@@ -1248,6 +1266,7 @@ async def init_app_state(
 
     state.enable_server_load_tracking = args.enable_server_load_tracking
     state.server_load_metrics = 0
+    state.model_config = model_config
 
 
 def create_server_socket(addr: tuple[str, int]) -> socket.socket:
