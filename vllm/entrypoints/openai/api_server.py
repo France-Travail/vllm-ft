@@ -304,6 +304,38 @@ async def validate_json_request(raw_request: Request):
         )
 
 
+def verify_request(request: Union[
+    ChatCompletionRequest,
+    CompletionRequest]) -> None:
+    """Parses the sampling parameters to check if any combination will break the app
+
+    Args:
+        request  (Union[ChatCompletionRequest, CompletionRequest]): The request to verify
+    Returns:
+        None
+    """
+    status_code = 422
+    detail = None
+    if request.echo and request.stream:
+        detail="Use both echo and stream breaks backend"
+    if request.temperature is not None and request.top_p is not None:
+        if request.temperature == 0 and request.top_p == 0:
+            detail=f"Use temperature and top_p equal to 0 breaks the model"
+    if request.temperature and request.top_k:
+        if request.temperature > 2 and request.top_k == 1:
+            detail=f"Use temperature with high value: {request.temperature} and top_k equals to 1 : {request.top_k} breaks the model"
+    if request.top_p and request.top_k:
+        if request.top_p == 1 and request.top_k == 1:
+            detail=f"Use top_p and top_k equal to 1 breaks the model"
+    if request.max_tokens and request.min_tokens:
+        if request.max_tokens < request.min_tokens:
+            detail=f"Use max_tokens: {request.max_tokens} less than min_tokens : {request.min_tokens} breaks the model"
+    if detail :
+        raise HTTPException(
+            status_code=status_code, 
+            detail=detail
+        )
+
 router = APIRouter()
 
 
@@ -500,6 +532,8 @@ async def create_chat_completion(request: ChatCompletionRequest,
         return base(raw_request).create_error_response(
             message="The model does not support Chat Completions API")
 
+    verify_request(request)
+
     generator = await handler.create_chat_completion(request, raw_request)
 
     if isinstance(generator, ErrorResponse):
@@ -521,6 +555,7 @@ async def create_completion(request: CompletionRequest, raw_request: Request):
         return base(raw_request).create_error_response(
             message="The model does not support Completions API")
 
+    verify_request(request)
     generator = await handler.create_completion(request, raw_request)
     if isinstance(generator, ErrorResponse):
         return JSONResponse(content=generator.model_dump(),
