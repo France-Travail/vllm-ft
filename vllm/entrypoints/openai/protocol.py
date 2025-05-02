@@ -726,6 +726,25 @@ class ChatCompletionRequest(OpenAIBaseModel):
                              "`add_generation_prompt` to True.")
         return data
 
+    @model_validator(mode="before")
+    @classmethod
+    def check_incompatible_arguments(cls, data):
+        if data.get("echo") and data.get("stream"):
+            raise ValueError("Using both echo and stream breaks backend")
+        if (temperature := data.get("temperature")) is not None and (top_p := data.get("top_p")) is not None:
+            if temperature == 0 and top_p == 0:
+                raise ValueError("Using temperature and top_p equal to 0 breaks the model")
+        if (temperature := data.get("temperature")) and (top_k := data.get("top_k")):
+            if temperature > 2 and top_k == 1:
+                raise ValueError(f"Using temperature with high value: {temperature} and top_k equals to 1 breaks the model")
+        if (top_p := data.get("top_p")) and (top_k := data.get("top_k")):
+            if top_p == 1 and top_k == 1:
+                raise ValueError(f"Using top_p and top_k equal to 1 breaks the model")
+        if (max_tokens := data.get("max_tokens")) and (min_tokens := data.get("min_tokens")):
+            if max_tokens < min_tokens:
+                raise ValueError(f"Using max_tokens: {max_tokens} less than min_tokens : {min_tokens} breaks the model")
+        return data
+
 
 class CompletionRequest(OpenAIBaseModel):
     # Ordered by official OpenAI API documentation
@@ -1003,6 +1022,25 @@ class CompletionRequest(OpenAIBaseModel):
             raise ValueError(
                 "Stream options can only be defined when `stream=True`.")
 
+        return data
+
+    @model_validator(mode="before")
+    @classmethod
+    def check_incompatible_arguments(cls, data):
+        if data.get("echo") and data.get("stream"):
+            raise ValueError("Using both echo and stream breaks backend")
+        if (temperature := data.get("temperature")) is not None and (top_p := data.get("top_p")) is not None:
+            if temperature == 0 and top_p == 0:
+                raise ValueError("Using temperature and top_p equal to 0 breaks the model")
+        if (temperature := data.get("temperature")) and (top_k := data.get("top_k")):
+            if temperature > 2 and top_k == 1:
+                raise ValueError(f"Using temperature with high value: {temperature} and top_k equals to 1 breaks the model")
+        if (top_p := data.get("top_p")) and (top_k := data.get("top_k")):
+            if top_p == 1 and top_k == 1:
+                raise ValueError(f"Using top_p and top_k equal to 1 breaks the model")
+        if (max_tokens := data.get("max_tokens")) and (min_tokens := data.get("min_tokens")):
+            if max_tokens < min_tokens:
+                raise ValueError(f"Using max_tokens: {max_tokens} less than min_tokens : {min_tokens} breaks the model")
         return data
 
 
