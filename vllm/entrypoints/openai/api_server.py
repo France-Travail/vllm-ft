@@ -13,6 +13,7 @@ import signal
 import socket
 import tempfile
 import uuid
+import json
 from argparse import Namespace
 from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
@@ -546,7 +547,8 @@ async def get_info(raw_request: Request):
         "version": utils_ft.get_package_version(),
         "vllm_version": ORIGINAL_VLLM_VERSION,
         "model_name": model_name,
-        "max_length": raw_request.app.state.model_config.max_model_len
+        "max_length": raw_request.app.state.model_config.max_model_len,
+        "extra_information": raw_request.app.state.extra_information
     }
     return JSONResponse(content=content)
 
@@ -1258,6 +1260,13 @@ async def init_app_state(
         state.arguments = clean_arguments.copy()
     else:
         state.arguments = None
+
+    if (extra_information_path:=args.extra_information):
+        with open(extra_information_path, "r") as json_file:
+            extra_information = json.load(json_file)
+    else:
+        extra_information = {}
+    state.extra_information = extra_information
 
     if args.disable_log_requests:
         request_logger = None
