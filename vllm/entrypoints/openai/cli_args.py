@@ -283,6 +283,10 @@ def make_arg_parser(parser: FlexibleArgumentParser) -> FlexibleArgumentParser:
                         action="store_true",
                         default=False,
                         help="Whether the route launch_arguments should display the launch arguments")
+    parser.add_argument("--extra-information",
+                        type=str,
+                        default=None,
+                        help="A json file whose content we want to add to the /v1/info route")
 
     return parser
 
