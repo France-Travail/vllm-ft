@@ -12,6 +12,7 @@ import signal
 import socket
 import tempfile
 import uuid
+import json
 from argparse import Namespace
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -949,8 +950,8 @@ async def init_app_state(
     if (extra_information_path:=args.extra_information):
         with open(extra_information_path, "r") as json_file:
             extra_information = json.load(json_file)
-        else:
-            extra_information = None
+    else:
+        extra_information = None
     state.extra_information = extra_information
 
     if args.disable_log_requests:
