@@ -9,6 +9,7 @@ import signal
 import socket
 import tempfile
 import warnings
+import json
 from argparse import Namespace
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -304,6 +305,13 @@ async def init_app_state(
         state.arguments = clean_arguments.copy()
     else:
         state.arguments = None
+
+    if (extra_information_path:=args.extra_information):
+        with open(extra_information_path, "r") as json_file:
+            extra_information = json.load(json_file)
+    else:
+        extra_information = {}
+    state.extra_information = extra_information
 
     if args.enable_log_requests:
         request_logger = RequestLogger(max_log_len=args.max_log_len)
