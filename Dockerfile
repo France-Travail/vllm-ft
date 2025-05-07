@@ -56,6 +56,7 @@ COPY --from=builder /opt/venv /opt/venv
 
 WORKDIR /app
 
+COPY vllm /app/vllm
 
 # Start API
 EXPOSE 5000
