@@ -32,8 +32,7 @@ COPY vllm /app/vllm
 
 RUN chmod +x /app/easy_install.sh
 RUN --mount=type=bind,source=.git,target=/app/.git \
-    /app/easy_install.sh --docker-launch \
-    && pip install .
+    /app/easy_install.sh --docker-launch
 
 FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
 
