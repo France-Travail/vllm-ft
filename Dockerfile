@@ -31,7 +31,8 @@ COPY requirements/common.txt requirements/build.txt /app/requirements/
 COPY vllm /app/vllm
 
 RUN chmod +x /app/easy_install.sh
-RUN /app/easy_install.sh
+RUN --mount=type=bind,source=.git,target=/app/.git \
+    /app/easy_install.sh
 
 FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
 
