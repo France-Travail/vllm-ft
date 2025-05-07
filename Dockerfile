@@ -27,7 +27,7 @@ WORKDIR /app
 
 # Install package
 COPY pyproject.toml setup.py README.md easy_install.sh /app/
-COPY requirements /app/requirements
+COPY requirements/common.txt requirements/build.txt requirements/cuda.txt /app/requirements/
 COPY vllm /app/vllm
 
 RUN chmod +x /app/easy_install.sh
