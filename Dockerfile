@@ -7,7 +7,7 @@ COPY prebuildfs /
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Install python common
-RUN install_packages software-properties-common
+RUN install_packages software-properties-common git
 
 RUN add-apt-repository -d -y 'ppa:deadsnakes/ppa' \
      && install_packages python3.11 python3.11-dev python3.11-venv python3-pip gcc-10 g++-10\
@@ -23,59 +23,39 @@ RUN python -m venv /opt/venv \
 ENV VIRTUAL_ENV="/opt/venv" PATH="/opt/venv/bin:${PATH}"
 
 
+WORKDIR /app
+
 # Install package
-COPY . .
+COPY pyproject.toml setup.py README.md easy_install.sh /app/
+COPY requirements/common.txt requirements/build.txt /app/requirements/
+COPY vllm /app/vllm
 
-WORKDIR /requirements
-RUN pip install -r common.txt
-RUN pip install -r build.txt
-WORKDIR /
-ENV VLLM_COMMIT=ed2462030f2ccc84be13d8bb2c7476c84930fb71
-ENV VLLM_PRECOMPILED_WHEEL_LOCATION=https://wheels.vllm.ai/ed2462030f2ccc84be13d8bb2c7476c84930fb71/vllm-1.0.0.dev-cp38-abi3-manylinux1_x86_64.whl
-COPY .git .git
-RUN python3 setup.py bdist_wheel --dist-dir=dist --py-limited-api=cp38; 
-# RUN pip install --editable .
+RUN chmod +x /app/easy_install.sh
+RUN /app/easy_install.sh
 
+FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
 
-# WORKDIR /app
+COPY prebuildfs /
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# # Install package
-# COPY pyproject.toml setup.py README.md easy_install.sh /app/
-# COPY requirements/common.txt requirements/build.txt /app/requirements/
-# COPY vllm /app/vllm
+# Install python common
+RUN install_packages software-properties-common
 
-# WORKDIR /app/requirements
-# RUN pip install -r common.txt
-# RUN pip install -r build.txt
-# WORKDIR /app
-# ENV VLLM_COMMIT=ed2462030f2ccc84be13d8bb2c7476c84930fb71
-# ENV VLLM_PRECOMPILED_WHEEL_LOCATION=https://wheels.vllm.ai/ed2462030f2ccc84be13d8bb2c7476c84930fb71/vllm-1.0.0.dev-cp38-abi3-manylinux1_x86_64.whl
-# RUN --mount=type=bind,source=.git,target=/app/.git \
-#     pip install --editable .
+RUN add-apt-repository -d -y 'ppa:deadsnakes/ppa' \
+     && install_packages python3.11 python3.11-dev python3.11-venv python3-pip gcc-10 g++-10\
+     && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1\
+     && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 110 --slave /usr/bin/g++ g++ /usr/bin/g++-10
 
-# FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:${PATH}" \
+    PIP_NO_CACHE_DIR=true
 
-# COPY prebuildfs /
-# SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+COPY --from=builder /opt/venv /opt/venv
 
-# # Install python common
-# RUN install_packages software-properties-common
-
-# RUN add-apt-repository -d -y 'ppa:deadsnakes/ppa' \
-#      && install_packages python3.11 python3.11-dev python3.11-venv python3-pip gcc-10 g++-10\
-#      && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1\
-#      && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 110 --slave /usr/bin/g++ g++ /usr/bin/g++-10
-
-# ENV PYTHONDONTWRITEBYTECODE=1 \
-#     PYTHONUNBUFFERED=1 \
-#     PATH="/opt/venv/bin:${PATH}" \
-#     PIP_NO_CACHE_DIR=true
-
-# COPY --from=builder /opt/venv /opt/venv
-
-# WORKDIR /app
+WORKDIR /app
 
 
-# # Start API
-# EXPOSE 5000
-# CMD ["vllm", "serve"]
+# Start API
+EXPOSE 5000
+CMD ["vllm", "serve"]
