@@ -25,7 +25,7 @@ ENV VIRTUAL_ENV="/opt/venv" PATH="/opt/venv/bin:${PATH}"
 WORKDIR /app
 
 # Install package
-COPY pyproject.toml setup.py README.md easy_install.sh /app/
+COPY pyproject.toml setup.py README.md easy_install.sh LICENSE MANIFEST.in /app/
 COPY requirements /app/requirements/
 COPY vllm /app/vllm
 
