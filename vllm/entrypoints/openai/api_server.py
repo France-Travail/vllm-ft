@@ -422,6 +422,32 @@ async def health(raw_request: Request) -> Response:
     return Response(status_code=200)
 
 
+@router.get("/liveness")
+async def health(raw_request: Request) -> Response:
+    """Health check."""
+    await engine_client(raw_request).check_health()
+    return Response(status_code=200)
+
+
+@router.get("/readiness")
+async def get_readiness(raw_request: Request) -> Response:
+    """Readiness probe for k8s"""
+    try :
+        model_executor = raw_request.app.state.openai_serving_chat.engine.engine.model_executor
+        model_runner = model_executor.driver_worker.model_runner
+
+        # check if model weight are loaded in gpu memory
+        model_weights = model_runner.model_memory_usage
+
+        # check if KV cache has been set up
+        num_cpu_blocks = model_runner.num_cpu_blocks
+        num_gpu_blocks = model_runner.num_gpu_blocks
+
+        if model_weights > 0 and num_cpu_blocks > 0  and num_gpu_blocks > 0 :
+            return Response(status_code=200)
+    except: HTTPException(status_code=500, detail="Model not loaded yet or KV cache not setup yet")
+
+
 @router.get("/load")
 async def get_server_load_metrics(request: Request):
     # This endpoint returns the current server load metrics.
