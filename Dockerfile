@@ -40,7 +40,7 @@ ENV CUDA_VERSION=12.8.1
 # pip install .
 
 RUN --mount=type=bind,source=.git,target=/app/.git \
-    python setup.py bdist_wheel --dist-dir=dist --py-limited-api=cp38 \
+    python setup.py bdist_wheel --dist-dir=dist --py-limited-api=cp38
 RUN pip install dist/*.whl --extra-index-url https://download.pytorch.org/whl/cu$(echo $CUDA_VERSION | cut -d. -f1,2 | tr -d '.')
 
 # Start API
