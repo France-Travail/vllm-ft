@@ -180,51 +180,59 @@ def build_app(
         app = FastAPI(lifespan=lifespan)
     app.state.args = args
 
+    from fastapi import APIRouter
+    router_bis = APIRouter() # Create a bis app
+
     from vllm.entrypoints.openai.basic.api_router import register_basic_api_routers
 
-    register_basic_api_routers(app)
+    register_basic_api_routers(router_bis)
 
     from vllm.entrypoints.serve import register_vllm_serve_api_routers
 
-    register_vllm_serve_api_routers(app)
+    register_vllm_serve_api_routers(router_bis)
 
     from vllm.entrypoints.openai.models.api_router import (
         attach_router as register_models_api_router,
     )
 
-    register_models_api_router(app)
+    register_models_api_router(router_bis)
 
     from vllm.entrypoints.sagemaker.api_router import (
         attach_router as register_sagemaker_api_router,
     )
 
-    register_sagemaker_api_router(app, supported_tasks)
+    register_sagemaker_api_router(router_bis, supported_tasks)
 
     if "generate" in supported_tasks:
         from vllm.entrypoints.openai.generate.api_router import (
             register_generate_api_routers,
         )
 
-        register_generate_api_routers(app)
+        register_generate_api_routers(router_bis)
 
     if "transcription" in supported_tasks:
         from vllm.entrypoints.openai.speech_to_text.api_router import (
             attach_router as register_speech_to_text_api_router,
         )
 
-        register_speech_to_text_api_router(app)
+        register_speech_to_text_api_router(router_bis)
 
     if "realtime" in supported_tasks:
         from vllm.entrypoints.openai.realtime.api_router import (
             attach_router as register_realtime_api_router,
         )
 
-        register_realtime_api_router(app)
+        register_realtime_api_router(router_bis)
 
     if any(task in POOLING_TASKS for task in supported_tasks):
         from vllm.entrypoints.pooling import register_pooling_api_routers
 
-        register_pooling_api_routers(app, supported_tasks)
+        register_pooling_api_routers(router_bis, supported_tasks)
+
+    if args.api_endpoint_prefix:
+        app.include_router(router_bis, prefix=args.api_endpoint_prefix)
+    else:
+        app.include_router(router_bis)
 
     app.root_path = args.root_path
     app.add_middleware(
