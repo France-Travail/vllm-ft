@@ -275,6 +275,10 @@ def make_arg_parser(parser: FlexibleArgumentParser) -> FlexibleArgumentParser:
                         type=str,
                         default=None,
                         help="A json file whose content we want to add to the /v1/info route")
+    parser.add_argument("--api-endpoint-prefix",
+                        type=str,
+                        default=None,
+                        help="A prefix to add to the endpoints")
 
     return parser
 
