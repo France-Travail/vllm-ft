@@ -18,12 +18,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=true
 
-RUN pip install --upgrade pip
-RUN pip install virtualenv
+RUN pip3.11 install --upgrade pip
 
 WORKDIR /app
 
-RUN python -m virtualenv Venv_vllm_ft
+RUN python3.11 -m venv Venv_vllm_ft
 RUN source /app/Venv_vllm_ft/bin/activate
 ENV VIRTUAL_ENV="/app/Venv_vllm_ft" PATH="/app/Venv_vllm_ft/bin:${PATH}"
 
