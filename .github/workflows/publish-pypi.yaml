@@ -34,7 +34,7 @@ jobs:
       - name: Set the environment variables
         run: |
           echo "VLLM_PRECOMPILED_WHEEL_LOCATION=$(./easy_install.sh --env-only)" >> $GITHUB_ENV
-      - name: Test
+      - name: Check precompiled wheel location
         run: echo $VLLM_PRECOMPILED_WHEEL_LOCATION
       - name: Build package
         run: python -m build
