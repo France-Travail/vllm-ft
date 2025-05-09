@@ -7,7 +7,7 @@ COPY prebuildfs /
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Install python common
-RUN install_packages software-properties-common
+RUN install_packages software-properties-common git
 
 RUN add-apt-repository -d -y 'ppa:deadsnakes/ppa' \
      && install_packages python3.11 python3.11-dev python3.11-venv python3-pip gcc-10 g++-10\
@@ -26,35 +26,13 @@ WORKDIR /app
 
 # Install package
 COPY pyproject.toml setup.py README.md easy_install.sh /app/
-COPY requirements/common.txt requirements/build.txt /app/requirements/
+COPY requirements /app/requirements/
 COPY vllm /app/vllm
 
 RUN chmod +x /app/easy_install.sh
-RUN /app/easy_install.sh
-
-FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
-
-COPY prebuildfs /
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
-# Install python common
-RUN install_packages software-properties-common
-
-RUN add-apt-repository -d -y 'ppa:deadsnakes/ppa' \
-     && install_packages python3.11 python3.11-dev python3.11-venv python3-pip gcc-10 g++-10\
-     && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1\
-     && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 110 --slave /usr/bin/g++ g++ /usr/bin/g++-10
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PATH="/opt/venv/bin:${PATH}" \
-    PIP_NO_CACHE_DIR=true
-
-COPY --from=builder /opt/venv /opt/venv
-
-WORKDIR /app
-
+RUN --mount=type=bind,source=.git,target=/app/.git \
+    /app/easy_install.sh
 
 # Start API
 EXPOSE 5000
-CMD ["vllm", "serve"]
+CMD ["python", "-m", "vllm.entrypoints.openai.api_server"]
