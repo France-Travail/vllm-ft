@@ -13,9 +13,10 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vllm"
-authors = [{name = "vLLM Team"}]
-license = {file = "LICENSE"}
+name = "vllm_ft"
+authors = [{name = "Agence Data Services FT"}]
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 readme = "README.md"
 description = "A high-throughput and memory-efficient inference and serving engine for LLMs"
 classifiers = [
