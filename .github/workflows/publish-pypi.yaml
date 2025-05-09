@@ -26,8 +26,7 @@ jobs:
       run: chmod +x easy_install.sh
     - name: Set the environment variables
       run: |
-        echo "VLLM_COMMIT=$(./easy_install.sh --env-only)" >> $GITHUB_ENV
-        echo "VLLM_PRECOMPILED_WHEEL_LOCATION=https://wheels.vllm.ai/${VLLM_COMMIT}/vllm-1.0.0.dev-cp38-abi3-manylinux1_x86_64.whl" >> $GITHUB_ENV
+        echo "VLLM_PRECOMPILED_WHEEL_LOCATION=$(./easy_install.sh --env-only)" >> $GITHUB_ENV
     - name: Test
       run: echo $VLLM_PRECOMPILED_WHEEL_LOCATION
     - name: Build package
