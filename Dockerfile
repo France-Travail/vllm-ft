@@ -30,8 +30,18 @@ COPY requirements /app/requirements/
 COPY vllm /app/vllm
 
 RUN chmod +x /app/easy_install.sh
+WORKDIR /app/requirements
+RUN pip install -r common.txt
+RUN pip install -r build.txt
+WORKDIR /app
+ENV VLLM_COMMIT=ed2462030f2ccc84be13d8bb2c7476c84930fb71 # use full commit hash from the main branch
+ENV VLLM_PRECOMPILED_WHEEL_LOCATION=https://wheels.vllm.ai/ed2462030f2ccc84be13d8bb2c7476c84930fb71/vllm-1.0.0.dev-cp38-abi3-manylinux1_x86_64.whl
+ENV CUDA_VERSION=12.8.1
+# pip install .
+
 RUN --mount=type=bind,source=.git,target=/app/.git \
-    /app/easy_install.sh
+    python setup.py bdist_wheel --dist-dir=dist --py-limited-api=cp38 \
+RUN pip install dist/*.whl --extra-index-url https://download.pytorch.org/whl/cu$(echo $CUDA_VERSION | cut -d. -f1,2 | tr -d '.')
 
 # Start API
 EXPOSE 5000
