@@ -530,7 +530,10 @@ def build_app(args: Namespace) -> FastAPI:
     from vllm.entrypoints.sagemaker.routes import register_sagemaker_routes
 
     register_sagemaker_routes(router)
-    app.include_router(router)
+    if args.api_endpoint_prefix:
+        app.include_router(router, prefix=args.api_endpoint_prefix)
+    else:
+        app.include_router(router)
 
     app.root_path = args.root_path
 
