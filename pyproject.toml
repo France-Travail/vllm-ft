@@ -13,8 +13,8 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vllm"
-authors = [{name = "vLLM Team"}]
+name = "vllm_ft"
+authors = [{name = "Agence Data Services FT"}]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 readme = "README.md"
