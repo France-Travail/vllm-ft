@@ -9,4 +9,4 @@ export VLLM_PRECOMPILED_WHEEL_LOCATION=https://wheels.vllm.ai/${VLLM_COMMIT}/vll
 export CUDA_VERSION=12.8.1
 # pip install .
 python setup.py bdist_wheel --dist-dir=dist --py-limited-api=cp38
-pip install --system dist/*.whl --extra-index-url https://download.pytorch.org/whl/cu$(echo $CUDA_VERSION | cut -d. -f1,2 | tr -d '.')
+pip install dist/*.whl --extra-index-url https://download.pytorch.org/whl/cu$(echo $CUDA_VERSION | cut -d. -f1,2 | tr -d '.')
