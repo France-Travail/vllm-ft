@@ -25,7 +25,7 @@ jobs:
     - name: Make easy_install.sh executable
       run: chmod +x easy_install.sh
     - name: Set the environment variables
-      run: ./easy_install --env-only
+      run: ./easy_install.sh --env-only
     - name: Build package
       run: python -m build
       env:
