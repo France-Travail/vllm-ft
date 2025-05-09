@@ -1050,7 +1050,10 @@ def build_app(args: Namespace) -> FastAPI:
                       lifespan=lifespan)
     else:
         app = FastAPI(lifespan=lifespan)
-    app.include_router(router)
+    if args.api_endpoint_prefix:
+        app.include_router(router, prefix=args.api_endpoint_prefix)
+    else:
+        app.include_router(router)
     app.root_path = args.root_path
 
     mount_metrics(app)
