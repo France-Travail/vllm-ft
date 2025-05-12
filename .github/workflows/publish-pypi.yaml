@@ -15,6 +15,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Fetch all tags
+        run: git fetch tags
+      - name: Get the latest tag
+        id: vars
+        run: echo "::set-output name=latest-tag::$(git describe --tags `git rev-list --tags --max-count=1`)"
+
       - name: Set up Linux Env
         run: bash -x .github/workflows/scripts/env.sh
       - uses: actions/setup-python@v5
@@ -36,14 +42,14 @@ jobs:
           echo "VLLM_PRECOMPILED_WHEEL_LOCATION=$(./easy_install.sh --env-only)" >> $GITHUB_ENV
       - name: Check precompiled wheel location
         run: echo $VLLM_PRECOMPILED_WHEEL_LOCATION
+      - name: Checkout latest tag
+        run: git checkout ${{ steps.vars.outputs.latest-tag }}
       - name: Build package
         run: python -m build
         env:
           VERSION: ${{ github.event.inputs.version }}
       - name: Publish package to TestPyPI
         uses: pypa/gh-action-pypi-publish@v1.4.1
-        env:
-          TWINE_VERBOSE: true
         with:
           user: __token__
           password: ${{ secrets.TEST_PYPI_TOKEN }}
