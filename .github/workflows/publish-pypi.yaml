@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Fetch all tags
-        run: git fetch tags
+        run: git fetch --tags
       - name: Get the latest tag
         id: vars
         run: echo "::set-output name=latest-tag::$(git describe --tags `git rev-list --tags --max-count=1`)"
