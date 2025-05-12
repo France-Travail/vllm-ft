@@ -19,7 +19,7 @@ jobs:
         run: git fetch --tags
       - name: Get the latest tag
         id: vars
-        run: echo "::set-output name=latest-tag::$(git describe --tags `git rev-list --tags --max-count=1`)"
+        run: echo "latest-tag=$(git describe --tags `git rev-list --tags --max-count=1`)" >> $GITHUB_OUTPUT
 
       - name: Set up Linux Env
         run: bash -x .github/workflows/scripts/env.sh
