@@ -42,6 +42,8 @@ jobs:
           VERSION: ${{ github.event.inputs.version }}
       - name: Publish package to TestPyPI
         uses: pypa/gh-action-pypi-publish@v1.4.1
+        env:
+          TWINE_VERBOSE: true
         with:
           user: __token__
           password: ${{ secrets.TEST_PYPI_TOKEN }}
