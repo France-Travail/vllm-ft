@@ -41,7 +41,7 @@ RUN source /app/Venv_vllm_ft/bin/activate \
 
 
 WORKDIR /app
-RUN --mount=type=bind,source=.git,target=/app/.git \
+RUN --mount=type=bind,source=.git,target=.git \
     source /app/Venv_vllm_ft/bin/activate \
     && export LATEST_TAG=echo "(git describe --tags `git rev-list --tags --max-count=1`)" \
     && git checkout $LATEST_TAG \
