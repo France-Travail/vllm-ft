@@ -557,7 +557,7 @@ def get_vllm_version() -> str:
             version += f"{sep}empty"
     elif _is_cuda():
         if envs.VLLM_USE_PRECOMPILED:
-            pass
+            version += f"{sep}precompiled"
         else:
             cuda_version = str(get_nvcc_cuda_version())
             if cuda_version != MAIN_CUDA_VERSION:
