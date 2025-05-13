@@ -32,10 +32,6 @@ COPY requirements /app/requirements/
 COPY vllm /app/vllm
 
 RUN chmod +x /app/easy_install.sh
-RUN export VLLM_PRECOMPILED_WHEEL_LOCATION=$(/app/easy_install.sh --env-only) &&\
-    echo $VLLM_PRECOMPILED_WHEEL_LOCATION > /tmp/vllm_precompiled_wheel_location
-
-ENV VLLM_PRECOMPILED_WHEEL_LOCATION=$(cat /tmp/vllm_precompiled_wheel_location)
 
 WORKDIR /app/requirements
 RUN pip install -r common.txt
@@ -45,7 +41,8 @@ WORKDIR /app
 RUN --mount=type=bind,source=.git,target=/app/.git \
     export LATEST_TAG=echo "(git describe --tags `git rev-list --tags --max-count=1`)" \
     && git checkout $LATEST_TAG \
-    && pip install .
+    && export VLLM_PRECOMPILED_WHEEL_LOCATION=$(/app/easy_install.sh --env-only)
+    && VLLM_PRECOMPILED_WHEEL_LOCATION=$VLLM_PRECOMPILED_WHEEL_LOCATION pip install .
 
 # Start API
 EXPOSE 5000
