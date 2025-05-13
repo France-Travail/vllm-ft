@@ -31,7 +31,7 @@ COPY vllm /app/vllm
 
 RUN chmod +x /app/easy_install.sh
 RUN --mount=type=bind,source=.git,target=/app/.git \
-    /app/easy_install.sh
+    /app/easy_install.sh --docker_build
 
 # Start API
 EXPOSE 5000
