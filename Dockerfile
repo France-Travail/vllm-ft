@@ -41,7 +41,7 @@ WORKDIR /app
 RUN --mount=type=bind,source=.git,target=/app/.git \
     export LATEST_TAG=echo "(git describe --tags `git rev-list --tags --max-count=1`)" \
     && git checkout $LATEST_TAG \
-    && export VLLM_PRECOMPILED_WHEEL_LOCATION=$(/app/easy_install.sh --env-only)
+    && export VLLM_PRECOMPILED_WHEEL_LOCATION=$(/app/easy_install.sh --env-only) \
     && VLLM_PRECOMPILED_WHEEL_LOCATION=$VLLM_PRECOMPILED_WHEEL_LOCATION pip install .
 
 # Start API
