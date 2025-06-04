@@ -18,20 +18,36 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=true
 
-RUN python -m venv /opt/venv \
-    && pip install --upgrade pip
-ENV VIRTUAL_ENV="/opt/venv" PATH="/opt/venv/bin:${PATH}"
+RUN pip install --upgrade pip
 
 WORKDIR /app
+
+RUN python -m venv Venv_vllm_ft
+ENV VIRTUAL_ENV="/app/Venv_vllm_ft" PATH="/app/Venv_vllm_ft/bin:${PATH}"
 
 # Install package
 COPY pyproject.toml setup.py README.md easy_install.sh /app/
 COPY requirements /app/requirements/
 COPY vllm /app/vllm
+COPY .git /app/.git
 
 RUN chmod +x /app/easy_install.sh
-RUN --mount=type=bind,source=.git,target=/app/.git \
-    /app/easy_install.sh
+
+WORKDIR /app/requirements
+RUN source /app/Venv_vllm_ft/bin/activate \
+    && pip install -r common.txt \
+    && pip install -r build.txt \
+    && deactivate
+
+
+WORKDIR /app
+RUN --mount=type=bind,source=.git,target=.git \
+    source /app/Venv_vllm_ft/bin/activate \
+    # && export LATEST_TAG=echo "(git describe --tags `git rev-list --tags --max-count=1`)" \
+    # && git checkout $LATEST_TAG \
+    && export VLLM_PRECOMPILED_WHEEL_LOCATION=$(/app/easy_install.sh --env-only) \
+    && VLLM_PRECOMPILED_WHEEL_LOCATION=$VLLM_PRECOMPILED_WHEEL_LOCATION pip install . \
+    && deactivate
 
 # Start API
 EXPOSE 5000
