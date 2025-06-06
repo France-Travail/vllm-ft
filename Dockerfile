@@ -29,7 +29,6 @@ ENV VIRTUAL_ENV="/app/Venv_vllm_ft" PATH="/app/Venv_vllm_ft/bin:${PATH}"
 COPY pyproject.toml setup.py README.md easy_install.sh /app/
 COPY requirements /app/requirements/
 COPY vllm /app/vllm
-COPY .git /app/.git
 
 RUN chmod +x /app/easy_install.sh
 
