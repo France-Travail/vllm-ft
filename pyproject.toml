@@ -43,6 +43,7 @@ vllm = "vllm.entrypoints.cli.main:main"
 
 [tool.setuptools_scm]
 version_scheme = "only-version"
+local_scheme = "no-local-version"
 
 [tool.setuptools.packages.find]
 where = ["."]
