@@ -13,7 +13,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vllm_ft"
+name = "vllm"
 authors = [{email = "drosdadssocle.00620@francetravail.fr"}, {name = "Agence Data Services FT"}]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
