@@ -546,7 +546,11 @@ def get_gaudi_sw_version():
 
 
 def get_vllm_version() -> str:
-    version = get_version(write_to="vllm/_version.py")
+    version = get_version(
+        version_scheme="only-version",
+        local_scheme="no-local-version",
+        write_to="vllm/_version.py"
+    )
     sep = "+" if "+" not in version else "."  # dev versions might contain +
 
     if _no_device():
