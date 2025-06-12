@@ -827,7 +827,11 @@ def get_vllm_version() -> str:
         os.environ["SETUPTOOLS_SCM_PRETEND_VERSION"] = env_version
         return get_version(write_to="vllm/_version.py")
 
-    version = get_version(write_to="vllm/_version.py")
+    version = get_version(
+        version_scheme="only-version",
+        local_scheme="no-local-version",
+        write_to="vllm/_version.py"
+    )
     sep = "+" if "+" not in version else "."  # dev versions might contain +
 
     if _no_device():
