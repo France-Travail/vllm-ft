@@ -502,7 +502,7 @@ async def get_info(raw_request: Request):
         model_name = raw_request.app.state.served_model_names[0]
     content = {
         "application": "vllm_ft",
-        "version": utils_ft.get_package_version(),
+        "version": utils_ft.get_package_version().split("+")[0],
         "vllm_version": ORIGINAL_VLLM_VERSION,
         "model_name": model_name,
         "max_length": raw_request.app.state.model_config.max_model_len,
