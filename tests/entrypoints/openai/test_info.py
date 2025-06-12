@@ -79,7 +79,7 @@ async def test_info_with_curl(server: RemoteOpenAIServer):
     response = requests.get(url, headers=headers).json()
     target_response = {"model_name": MODEL_NAME,
                        "application": "vllm_ft",
-                       "version": utils_ft.get_package_version(),
+                       "version": utils_ft.get_package_version().split("+")[0],
                        "vllm_version": ORIGINAL_VLLM_VERSION,
                        "max_length": 333,
                        "extra_information": {}}
@@ -99,7 +99,7 @@ async def test_info_with_extra_information(server_with_extra_information: Remote
     response = requests.get(url, headers=headers).json()
     target_response = {"model_name": MODEL_NAME,
                        "application": "vllm_ft",
-                       "version": utils_ft.get_package_version(),
+                       "version": utils_ft.get_package_version().split("+")[0],
                        "vllm_version": ORIGINAL_VLLM_VERSION,
                        "max_length": 333,
                        "extra_information": extra_information}
