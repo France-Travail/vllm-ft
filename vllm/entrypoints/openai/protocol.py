@@ -745,6 +745,7 @@ class ChatCompletionRequest(OpenAIBaseModel):
                               str) or not data["cache_salt"]:
                 raise ValueError("Parameter 'cache_salt' must be a "
                                  "non-empty string if provided.")
+        return data
             
     def check_incompatible_arguments(cls, data):
         if data.get("echo") and data.get("stream"):
@@ -1055,6 +1056,7 @@ class CompletionRequest(OpenAIBaseModel):
         if data.get("prompt") is None and data.get("prompt_embeds") is None:
             raise ValueError(
                 "At least one of `prompt` or `prompt_embeds` must be set.")
+        return data
                 
     def check_incompatible_arguments(cls, data):
         if data.get("echo") and data.get("stream"):
