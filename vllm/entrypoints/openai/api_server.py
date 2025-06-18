@@ -19,7 +19,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from functools import partial
 from http import HTTPStatus
-from typing import Annotated, Optional, Union, Callable
+from typing import Annotated, Optional, Any, Callable
 
 import prometheus_client
 import regex as re
