@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04 AS builder
+FROM nvidia/cuda:12.8.1-runtime-ubuntu22.04 AS builder
 
 LABEL org.opencontainers.image.author="Agence Data Services"
 LABEL org.opencontainers.image.description="REST service vllm-ft"
