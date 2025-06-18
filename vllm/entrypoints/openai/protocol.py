@@ -1018,6 +1018,7 @@ class ChatCompletionRequest(OpenAIBaseModel):
                               str) or not data["cache_salt"]:
                 raise ValueError("Parameter 'cache_salt' must be a "
                                  "non-empty string if provided.")
+        return data
             
     def check_incompatible_arguments(cls, data):
         if data.get("echo") and data.get("stream"):
