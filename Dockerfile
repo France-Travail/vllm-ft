@@ -2,6 +2,7 @@
 FROM nvidia/cuda:12.8.1-runtime-ubuntu22.04 AS builder
 
 # Install package
+## Remove software-properties-common because don't use deadsnake in ubuntu22.04 if python [3.10, 3.12]
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11 python3.11-dev python3.11-venv python3-pip \
     gcc-10 g++-10 git \
@@ -35,6 +36,7 @@ LABEL org.opencontainers.image.author="Agence Data Services"
 LABEL org.opencontainers.image.description="REST service vllm-ft"
 
 # Install python
+## Keep git because easy_install.sh run pip install --editable and use setuptools.scm
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11 git \
     && ln -s /usr/bin/python3.11 /usr/bin/python \
