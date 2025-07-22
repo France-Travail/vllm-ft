@@ -24,10 +24,12 @@ WORKDIR /app
 # Copy files
 COPY pyproject.toml setup.py README.md easy_install.sh /app/
 COPY requirements /app/requirements/
+COPY .git /app/.git
 COPY vllm /app/vllm
 
+
 # Run easy_install.sh
-RUN chmod +x easy_install.sh && ./easy_install.sh
+RUN chmod +x /app/easy_install.sh && /app/easy_install.sh
 
 # Stage 2 : final image
 FROM nvidia/cuda:12.8.1-runtime-ubuntu22.04 AS runtime
