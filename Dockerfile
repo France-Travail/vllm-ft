@@ -47,8 +47,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN install_packages \
     python3.11 git gcc-10 g++-10\
     && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1\
-    && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 110 --slave /usr/bin/g++ g++ /usr/bin/g++-10 \
-    && ln -s /usr/bin/python3.11 /usr/bin/python
+    && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 110 --slave /usr/bin/g++ g++ /usr/bin/g++-10
 
 # Copy from stage 1
 COPY --from=builder /opt/venv /opt/venv
