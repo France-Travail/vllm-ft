@@ -6,10 +6,9 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Install package
 ## Remove software-properties-common because don't use deadsnake in ubuntu22.04 if python [3.10, 3.12]
-RUN install_packages software-properties-common git
+RUN install_packages git
 
-RUN add-apt-repository -d -y 'ppa:deadsnakes/ppa' \
-     && install_packages python3.11 python3.11-dev python3.11-venv python3-pip gcc-10 g++-10\
+RUN install_packages python3.11 python3.11-dev python3.11-venv python3-pip gcc-10 g++-10\
      && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1\
      && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 110 --slave /usr/bin/g++ g++ /usr/bin/g++-10 \
      && python -m venv /opt/venv \
