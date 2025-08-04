@@ -10,6 +10,6 @@ else
         pip install -r common.txt
         pip install -r build.txt
         cd ..
-        pip install --editable .
+        pip install --editable .[audio]
     }
 fi
