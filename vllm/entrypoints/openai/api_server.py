@@ -26,7 +26,7 @@ import uvloop
 from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from starlette.concurrency import iterate_in_threadpool
 from starlette.datastructures import URL, Headers, MutableHeaders, State
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -281,32 +281,6 @@ def engine_client(request: Request) -> EngineClient:
 
 def generate_tokens(request: Request) -> ServingTokens | None:
     return request.app.state.serving_tokens
-
-
-@router.get("/liveness")
-async def health(raw_request: Request) -> Response:
-    """Health check."""
-    await engine_client(raw_request).check_health()
-    return Response(status_code=200)
-
-
-@router.get("/readiness")
-async def get_readiness(raw_request: Request) -> Response:
-    """Readiness probe for k8s"""
-    try :
-        model_executor = raw_request.app.state.openai_serving_chat.engine.engine.model_executor
-        model_runner = model_executor.driver_worker.model_runner
-
-        # check if model weight are loaded in gpu memory
-        model_weights = model_runner.model_memory_usage
-
-        # check if KV cache has been set up
-        num_cpu_blocks = model_runner.num_cpu_blocks
-        num_gpu_blocks = model_runner.num_gpu_blocks
-
-        if model_weights > 0 and num_cpu_blocks > 0  and num_gpu_blocks > 0 :
-            return Response(status_code=200)
-    except: HTTPException(status_code=500, detail="Model not loaded yet or KV cache not setup yet")
 
 
 @router.get("/load")
