@@ -167,7 +167,6 @@ class AppPrefixWrapper:
         self._prefix = prefix.rstrip("/") if prefix else ""
 
     def __getattr__(self, name):
-        
         return getattr(self._app, name)
 
     def include_router(self, router, *args, **kwargs):
