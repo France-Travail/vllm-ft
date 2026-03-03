@@ -14,7 +14,7 @@ import json
 from argparse import Namespace
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 import uvloop
 from fastapi import FastAPI, HTTPException
@@ -155,6 +155,35 @@ async def build_async_engine_client_from_engine_args(
             async_llm.shutdown(timeout=vllm_config.shutdown_timeout)
 
 
+class AppPrefixWrapper:
+    """
+    A proxy wrapper for a FastAPI application that dynamically injects 
+    a prefix into all attached routes and routers.
+    """
+    def __init__(self, app: FastAPI, prefix: str | None):
+        self._app = app
+        self._prefix = prefix.rstrip("/") if prefix else ""
+
+    def __getattr__(self, name):
+        return getattr(self._app, name)
+
+    def include_router(self, router, *args, **kwargs):
+        """Intercepts router inclusions to dynamically prepend the global prefix.
+        Args:
+            router: FastAPI router init.
+        """
+        if self._prefix:
+            existing_prefix = kwargs.get("prefix", "")
+            kwargs["prefix"] = f"{self._prefix}{existing_prefix}"
+        return self._app.include_router(router, *args, **kwargs)
+
+    def get(self, path, *args, **kwargs):
+        return self._app.get(f"{self._prefix}{path}", *args, **kwargs)
+
+    def post(self, path, *args, **kwargs):
+        return self._app.post(f"{self._prefix}{path}", *args, **kwargs)
+
+
 def build_app(
     args: Namespace,
     supported_tasks: tuple["SupportedTask", ...] | None = None,
@@ -180,28 +209,23 @@ def build_app(
         app = FastAPI(lifespan=lifespan)
     app.state.args = args
 
-    from fastapi import APIRouter
-    router_bis = APIRouter() # Create a bis app
-
-    from vllm.entrypoints.openai.basic.api_router import register_basic_api_routers
-
-    register_basic_api_routers(router_bis)
+    wrapped_app = AppPrefixWrapper(app=app, prefix=args.api_endpoint_prefix) # Create a wrapped app
 
     from vllm.entrypoints.serve import register_vllm_serve_api_routers
 
-    register_vllm_serve_api_routers(router_bis)
+    register_vllm_serve_api_routers(wrapped_app)
 
     from vllm.entrypoints.openai.models.api_router import (
         attach_router as register_models_api_router,
     )
 
-    register_models_api_router(router_bis)
+    register_models_api_router(wrapped_app)
 
     from vllm.entrypoints.serve.sagemaker.api_router import (
         attach_router as register_sagemaker_api_router,
     )
 
-    register_sagemaker_api_router(app, supported_tasks, model_config)
+    register_sagemaker_api_router(wrapped_app, supported_tasks, model_config)
 
     if envs.VLLM_SERVER_DEV_MODE:
         from vllm.entrypoints.serve import register_vllm_dev_api_routers
@@ -213,26 +237,26 @@ def build_app(
             register_generate_api_routers,
         )
 
-        register_generate_api_routers(router_bis)
+        register_generate_api_routers(wrapped_app)
 
         from vllm.entrypoints.serve.disagg.api_router import (
             attach_router as attach_disagg_router,
         )
 
-        attach_disagg_router(app)
+        attach_disagg_router(wrapped_app)
 
         from vllm.entrypoints.serve.elastic_ep.api_router import (
             attach_router as elastic_ep_attach_router,
         )
 
-        elastic_ep_attach_router(app)
+        elastic_ep_attach_router(wrapped_app)
 
     if "generate" in supported_tasks or "render" in supported_tasks:
         from vllm.entrypoints.serve.render.api_router import (
             attach_router as attach_render_router,
         )
 
-        attach_render_router(app)
+        attach_render_router(wrapped_app)
 
     if "transcription" in supported_tasks or "realtime" in supported_tasks:
         from vllm.entrypoints.speech_to_text.factories import (
@@ -244,12 +268,8 @@ def build_app(
     if any(task in POOLING_TASKS for task in supported_tasks):
         from vllm.entrypoints.pooling.factories import register_pooling_api_routers
 
-        register_pooling_api_routers(app, supported_tasks, model_config)
+        register_pooling_api_routers(wrapped_app, supported_tasks, model_config)
 
-    if args.api_endpoint_prefix:
-        app.include_router(router_bis, prefix=args.api_endpoint_prefix)
-    else:
-        app.include_router(router_bis)
 
     app.root_path = args.root_path
     app.add_middleware(
