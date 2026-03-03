@@ -5,6 +5,7 @@ export VLLM_PRECOMPILED_WHEEL_LOCATION=https://wheels.vllm.ai/${VLLM_COMMIT}/vll
 if [ "$1" == "--env-only" ]; then
     echo $VLLM_PRECOMPILED_WHEEL_LOCATION
 else
+    export SETUPTOOLS_SCM_PRETEND_VERSION=${VLLM_TAG}
     {
         cd requirements
         pip install -r common.txt
