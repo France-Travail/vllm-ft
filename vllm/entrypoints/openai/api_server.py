@@ -218,10 +218,6 @@ def build_app(
 
     wrapped_app = AppPrefixWrapper(app=app, prefix=args.api_endpoint_prefix) # Create a wrapped app
 
-    from vllm.entrypoints.openai.basic.api_router import register_basic_api_routers
-
-    register_basic_api_routers(wrapped_app)
-
     from vllm.entrypoints.serve import register_vllm_serve_api_routers
 
     register_vllm_serve_api_routers(wrapped_app)
