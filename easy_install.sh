@@ -1,6 +1,6 @@
 #!/bin/bash
-export VLLM_TAG=0.16.0 # use current tag version vllm
-export VLLM_COMMIT=89a77b10846fd96273cce78d86d2556ea582d26e
+export VLLM_TAG=0.17.0 # use current tag version vllm
+export VLLM_COMMIT=b31e9326a7d9394aab8c767f8ebe225c65594b60
 export VLLM_PRECOMPILED_WHEEL_LOCATION=https://wheels.vllm.ai/${VLLM_COMMIT}/vllm-${VLLM_TAG}-cp38-abi3-manylinux_2_31_x86_64.whl
 if [ "$1" == "--env-only" ]; then
     echo $VLLM_PRECOMPILED_WHEEL_LOCATION
