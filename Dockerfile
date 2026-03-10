@@ -7,7 +7,7 @@ COPY prebuildfs /
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Install python common
-RUN install_packages software-properties-common git
+RUN install_packages software-properties-common git curl
 
 RUN add-apt-repository -d -y 'ppa:deadsnakes/ppa' \
      && install_packages python3.11 python3.11-dev python3.11-venv python3-pip gcc-10 g++-10\
