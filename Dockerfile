@@ -30,6 +30,9 @@ COPY requirements /app/requirements/
 COPY vllm /app/vllm
 
 RUN chmod +x /app/easy_install.sh
+
+ARG REQ_FILE="common.txt"
+
 RUN --mount=type=bind,source=.git,target=/app/.git \
     /app/easy_install.sh
 
