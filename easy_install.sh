@@ -35,5 +35,10 @@ else
         pip install -r build.txt
         cd ..
         pip install --editable .[audio] --no-deps
+
+        if [ "$REQ_FILE" = "common_ft.txt" ]; then
+            echo "Détection de common_ft.txt : Écrasement forcé avec transformers==5.5.0..."
+            pip install transformers==5.5.0 --no-deps
+        fi
     }
 fi
