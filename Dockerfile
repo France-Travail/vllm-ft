@@ -30,8 +30,11 @@ COPY requirements /app/requirements/
 COPY vllm /app/vllm
 
 RUN chmod +x /app/easy_install.sh
+
+ARG REQ_FILE="common.txt"
+
 RUN --mount=type=bind,source=.git,target=/app/.git \
-    /app/easy_install.sh
+    /app/easy_install.sh ${REQ_FILE}
 
 # Start API
 EXPOSE 5000
