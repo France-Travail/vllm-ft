@@ -25,6 +25,7 @@ fi
 if [ "$1" == "--env-only" ]; then
     echo $VLLM_PRECOMPILED_WHEEL_LOCATION
 else
+    echo ${REQ_FILE}
     {
         export SETUPTOOLS_SCM_PRETEND_VERSION="${VLLM_TAG}"
         export VLLM_VERSION="${VLLM_TAG}"
@@ -33,6 +34,6 @@ else
         pip install -r "$REQ_FILE"
         pip install -r build.txt
         cd ..
-        pip install --editable .[audio]
+        pip install --editable .[audio] --no-deps
     }
 fi
