@@ -22,12 +22,19 @@ if [ "$HTTP_STATUS" -ne 200 ]; then
     exit 1
 fi
 
+
+REQ_FILE="common.txt"
+if [ "$1" != "--env-only" ] && [ -n "$1" ]; then
+    REQ_FILE="$1"
+fi
+
 if [ "$1" == "--env-only" ]; then
     echo $VLLM_PRECOMPILED_WHEEL_LOCATION
 else
     {
         cd requirements
-        pip install -r common.txt
+        echo "Installation des dépendances depuis ${REQ_FILE}..."
+        pip install -r "$REQ_FILE"
         pip install -r build.txt
         cd ..
         pip install --editable .[audio]
