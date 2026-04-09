@@ -36,8 +36,7 @@ from vllm.version import ORIGINAL_VLLM_VERSION
 @router.get("/v1/launch_arguments")
 async def show_launch_arguments(raw_request: Request):
     if raw_request.app.state.arguments is None:
-        return base(raw_request).create_error_response(
-            message="Launch arguments is not enabled")
+        return JSONResponse(content={"message":"Launch arguments is not enabled"})
     else:
         return JSONResponse(content=raw_request.app.state.arguments)
 
@@ -47,9 +46,10 @@ async def get_info(raw_request: Request):
     model_name = None
     if raw_request.app.state.served_model_names:
         model_name = raw_request.app.state.served_model_names[0]
+    
     content = {
         "application": "vllm_ft",
-        "version": utils_ft.get_package_version().split("+")[0],
+        "version": utils_ft.get_package_version(),
         "vllm_version": ORIGINAL_VLLM_VERSION,
         "model_name": model_name,
         "max_length": raw_request.app.state.model_config.max_model_len,
