@@ -1,9 +1,4 @@
-import importlib.metadata
-
-try:
-    from vllm.ft_version import FORK_VERSION
-except ImportError:
-    FORK_VERSION = "unknown"
+from vllm.ft_version import FORK_VERSION
 
 
 def get_package_version() -> str:
