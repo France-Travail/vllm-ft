@@ -29,6 +29,8 @@ else
     {
         export SETUPTOOLS_SCM_PRETEND_VERSION="${VLLM_TAG}"
         export VLLM_VERSION="${VLLM_TAG}"
+        FORK_TAG=$(git describe --tags --abbrev=0 2>/dev/null)
+        echo "FORK_VERSION = \"${FORK_TAG}\"" > vllm/ft_version.py
         cd requirements
         echo "Installation des dépendances depuis ${REQ_FILE}..."
         pip install -r "$REQ_FILE"
