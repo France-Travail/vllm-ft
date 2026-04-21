@@ -12,7 +12,7 @@ except Exception as e:
     __version_tuple__ = (0, 0, __version__)
 
 
-ORIGINAL_VLLM_VERSION = "0.16.0"
+ORIGINAL_VLLM_VERSION = "0.19.1"
 
 
 def _prev_minor_version_was(version_str):
