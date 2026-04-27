@@ -3,7 +3,7 @@ export VLLM_TAG=$(grep "ORIGINAL_VLLM_VERSION" vllm/version.py | cut -d '"' -f 2
 
 echo "vLLM's version : ${VLLM_TAG}"
 
-WHEEL_NAME="vllm-${VLLM_TAG}-cp38-abi3-manylinux_2_31_x86_64.whl"
+WHEEL_NAME="vllm-${VLLM_TAG}-cp38-abi3-manylinux_2_35_x86_64.whl"
 echo "Searching for the wheel's commit ${WHEEL_NAME}..."
 VLLM_COMMIT=$(curl -sL "https://wheels.vllm.ai/${VLLM_TAG}/vllm" | grep -oE "[a-f0-9]{40}/${WHEEL_NAME}" | head -n 1 | cut -d '/' -f 1)
 if [ -z "$VLLM_COMMIT" ]; then
@@ -39,8 +39,9 @@ else
         cd requirements
         echo "Installation des dépendances depuis ${REQ_FILE}..."
         pip install -r "$REQ_FILE"
-        pip install -r build.txt
-        cd ..
+        cd build
+        pip install -r cuda.txt
+        cd ../..
         pip install --editable .[audio]
     }
 fi
