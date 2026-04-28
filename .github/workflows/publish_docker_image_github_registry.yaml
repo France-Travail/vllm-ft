@@ -36,8 +36,6 @@ jobs:
         include:
           - req_file: "common.txt"
             suffix: ""
-          - req_file: "common_ft.txt"
-            suffix: "_transformers_55"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
