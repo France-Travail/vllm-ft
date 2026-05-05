@@ -43,7 +43,7 @@ else
         pip install -r cuda.txt
         cd ..
         cd ..
-        pip install git+https://github.com/deepseek-ai/DeepGEMM.git@v2.1.1.post3 --no-build-isolation 
         pip install --editable .[audio]
+        pip install git+https://github.com/deepseek-ai/DeepGEMM.git@v2.1.1.post3 --no-build-isolation 
     }
 fi
