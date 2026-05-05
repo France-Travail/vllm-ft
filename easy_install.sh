@@ -39,8 +39,9 @@ else
         cd requirements
         echo "Installation des dépendances depuis ${REQ_FILE}..."
         pip install -r "$REQ_FILE"
-        pip install git+https://github.com/deepseek-ai/DeepGEMM.git@v2.1.1.post3 --no-build-isolation 
-        pip install -r build.txt
+        cd build
+        pip install -r cuda.txt
+        cd ..
         cd ..
         pip install --editable .[audio]
     }
