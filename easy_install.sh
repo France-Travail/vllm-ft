@@ -44,6 +44,7 @@ else
         cd ..
         cd ..
         pip install --editable .[audio]
+        pip install ray[cgraph]
         pip install git+https://github.com/deepseek-ai/DeepGEMM.git@v2.1.1.post3 --no-build-isolation 
     }
 fi
