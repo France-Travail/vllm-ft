@@ -31,6 +31,9 @@ WORKDIR /app
 COPY pyproject.toml setup.py README.md easy_install.sh /app/
 COPY requirements /app/requirements/
 COPY vllm /app/vllm
+COPY tools /app/tools
+COPY rust /app/rust
+
 
 RUN chmod +x /app/easy_install.sh
 
