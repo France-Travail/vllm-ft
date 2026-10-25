@@ -2,7 +2,7 @@
 # Distributed KV cache transfer
 
 This folder implements distributed KV cache transfer across vLLM instances.
-Currently the main usecase is for disaggregated prefilling.
+Currently the main use case is for disaggregated prefilling.
 
 ## Abstractions
 
@@ -14,7 +14,7 @@ The KV cache transfer contains three layer of abstractions:
 
 Why we need KV lookup buffer: FIFO pipe itself is not enough as prefill vLLM worker may process requests in a different order compared to decode vLLM worker. Say the QPS is really high, prefill worker may handle requests in order A -> B -> C, but the decode worker may process request C first. This is not the case that can be naturally handled by FIFO pipe, so we provide KV lookup buffer to help translate a FIFO pipe to a lookup buffer.
 
-NOTE: KV pipe layer is bypassible: you can skip this layer if your distributed
+NOTE: KV pipe layer is bypassable: you can skip this layer if your distributed
 communication service already supports key-value-based lookup (like redis or
 RDMA database).
 
@@ -22,7 +22,7 @@ NOTE: If you want to not only transfer KV caches, but adjust the model execution
 
 ## Disaggregated prefilling
 
-The example usage is in [this file](../../../examples/online_serving/disaggregated_prefill.sh).
+The example usage is in [this file](../../../examples/disaggregated/disaggregated_prefill.sh).
 
 Here is the diagram of how we run disaggregated prefilling.
 

@@ -16,8 +16,7 @@ DOCKER_BUILDKIT=1 docker build . \
   --build-arg max_jobs=66 \
   --build-arg nvcc_threads=2 \
   --build-arg RUN_WHEEL_CHECK=false \
-  --build-arg torch_cuda_arch_list="9.0+PTX" \
-  --build-arg vllm_fa_cmake_gpu_arches="90-real"
+  --build-arg torch_cuda_arch_list="9.0+PTX"
 
 # Setup cleanup
 remove_docker_container() { docker rm -f gh200-test || true; }
@@ -26,5 +25,5 @@ remove_docker_container
 
 # Run the image and test offline inference
 docker run -e HF_TOKEN -e VLLM_WORKER_MULTIPROC_METHOD=spawn -v /root/.cache/huggingface:/root/.cache/huggingface --name gh200-test --gpus=all --entrypoint="" gh200-test bash -c '
-    python3 examples/offline_inference/basic/generate.py --model meta-llama/Llama-3.2-1B
+    python3 examples/basic/offline_inference/generate.py --model meta-llama/Llama-3.2-1B
 '

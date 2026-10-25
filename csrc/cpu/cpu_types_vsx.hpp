@@ -4,14 +4,19 @@
 
 #include <altivec.h>
 #include <cmath>
+#include <algorithm>
 #include <torch/all.h>
 
 namespace vec_op {
 
-// FIXME: FP16 is not fully supported in Torch-CPU
-#define VLLM_DISPATCH_CASE_FLOATING_TYPES(...)         \
-  AT_DISPATCH_CASE(at::ScalarType::Float, __VA_ARGS__) \
-  AT_DISPATCH_CASE(at::ScalarType::BFloat16, __VA_ARGS__)
+// FP8 tag types for tag dispatch (see cpu_attn_vec.hpp)
+struct fp8_e4m3_tag {};
+struct fp8_e5m2_tag {};
+
+#define VLLM_DISPATCH_CASE_FLOATING_TYPES(...)            \
+  AT_DISPATCH_CASE(at::ScalarType::Float, __VA_ARGS__)    \
+  AT_DISPATCH_CASE(at::ScalarType::BFloat16, __VA_ARGS__) \
+  AT_DISPATCH_CASE(at::ScalarType::Half, __VA_ARGS__)
 
 #define VLLM_DISPATCH_FLOATING_TYPES(TYPE, NAME, ...) \
   AT_DISPATCH_SWITCH(TYPE, NAME, VLLM_DISPATCH_CASE_FLOATING_TYPES(__VA_ARGS__))
@@ -29,6 +34,87 @@ namespace vec_op {
 #define FORCE_INLINE __attribute__((always_inline)) inline
 
 namespace {
+
+FORCE_INLINE __vector float fp16_to_fp32_bits(__vector unsigned int x) {
+  const __vector unsigned int mask_sign = {0x8000, 0x8000, 0x8000, 0x8000};
+  const __vector unsigned int mask_exp = {0x7C00, 0x7C00, 0x7C00, 0x7C00};
+  const __vector unsigned int mask_mant = {0x03FF, 0x03FF, 0x03FF, 0x03FF};
+  const __vector unsigned int bias_adj = {112, 112, 112, 112};
+  const __vector unsigned int exp_max_fp16 = {0x1F, 0x1F, 0x1F, 0x1F};
+  const __vector unsigned int exp_max_fp32 = {0xFF, 0xFF, 0xFF, 0xFF};
+
+  __vector unsigned int s = (x & mask_sign) << 16;
+  __vector unsigned int e = (x & mask_exp) >> 10;
+  __vector unsigned int m = (x & mask_mant) << 13;
+
+  __vector __bool int is_nan_inf = vec_cmpeq(e, exp_max_fp16);
+
+  __vector unsigned int e_normal = e + bias_adj;
+  e = vec_sel(e_normal, exp_max_fp32, is_nan_inf);
+
+  return (__vector float)(s | (e << 23) | m);
+}
+
+FORCE_INLINE __vector unsigned int fp32_to_fp16_bits(__vector float f_in) {
+  __vector unsigned int in = (__vector unsigned int)f_in;
+
+  const __vector unsigned int mask_sign_32 = {0x80000000, 0x80000000,
+                                              0x80000000, 0x80000000};
+  const __vector unsigned int mask_exp_32 = {0x7F800000, 0x7F800000, 0x7F800000,
+                                             0x7F800000};
+  const __vector unsigned int mask_mant_32 = {0x007FFFFF, 0x007FFFFF,
+                                              0x007FFFFF, 0x007FFFFF};
+
+  const __vector signed int bias_adj = {112, 112, 112, 112};
+  const __vector signed int zero = {0, 0, 0, 0};
+  const __vector signed int max_exp = {31, 31, 31, 31};
+  const __vector unsigned int exp_max_fp32 = {0xFF, 0xFF, 0xFF, 0xFF};
+  const __vector unsigned int exp_max_fp16 = {0x1F, 0x1F, 0x1F, 0x1F};
+
+  __vector unsigned int s = (in & mask_sign_32) >> 16;
+  __vector unsigned int e_u = (in & mask_exp_32) >> 23;
+
+  __vector __bool int is_nan_inf = vec_cmpeq(e_u, exp_max_fp32);
+
+  __vector signed int e_s = (__vector signed int)e_u;
+  e_s = vec_sub(e_s, bias_adj);
+  e_s = vec_max(e_s, zero);
+  e_s = vec_min(e_s, max_exp);
+  __vector unsigned int e_normal = (__vector unsigned int)e_s;
+
+  __vector unsigned int e_final = vec_sel(e_normal, exp_max_fp16, is_nan_inf);
+
+  const __vector unsigned int one_v = {1, 1, 1, 1};
+  const __vector unsigned int mask_sticky = {0xFFF, 0xFFF, 0xFFF, 0xFFF};
+
+  __vector unsigned int round_bit = (in >> 12) & one_v;
+  __vector unsigned int sticky = in & mask_sticky;
+  __vector unsigned int m = (in & mask_mant_32) >> 13;
+  __vector unsigned int lsb = m & one_v;
+
+  // Round up if: round_bit && (sticky || lsb)
+  __vector __bool int sticky_nonzero =
+      vec_cmpgt(sticky, (__vector unsigned int){0, 0, 0, 0});
+  __vector __bool int lsb_set = vec_cmpeq(lsb, one_v);
+  __vector __bool int round_up =
+      vec_and(vec_cmpeq(round_bit, one_v), vec_or(sticky_nonzero, lsb_set));
+
+  m = vec_sel(m, m + one_v, round_up);
+
+  const __vector unsigned int mant_mask = {0x3FF, 0x3FF, 0x3FF, 0x3FF};
+  const __vector unsigned int max_normal_exp = {0x1E, 0x1E, 0x1E, 0x1E};
+  __vector __bool int mant_overflows = vec_cmpgt(m, mant_mask);
+  __vector __bool int would_overflow_to_inf =
+      vec_and(mant_overflows, vec_cmpeq(e_final, max_normal_exp));
+  __vector unsigned int e_inc = vec_min(e_final + one_v, exp_max_fp16);
+  e_final = vec_sel(e_final, e_inc, mant_overflows);
+  m = vec_and(m, mant_mask);
+  e_final = vec_sel(e_final, max_normal_exp, would_overflow_to_inf);
+  m = vec_sel(m, mant_mask, would_overflow_to_inf);
+
+  return s | (e_final << 10) | m;
+}
+
 template <typename T, T... indexes, typename F>
 constexpr void unroll_loop_item(std::integer_sequence<T, indexes...>, F&& f) {
   (f(std::integral_constant<T, indexes>{}), ...);
@@ -62,6 +148,10 @@ typedef struct f32x4x4_t {
   __vector float val[4];
 } f32x4x4_t;
 
+typedef struct i32x4x4_t {
+  __vector int32_t val[4];
+} i32x4x4_t;
+
 struct FP32Vec8;
 struct FP32Vec16;
 
@@ -80,23 +170,83 @@ struct BF16Vec8 : public Vec<BF16Vec8> {
   }
 };
 
+struct FP16Vec8 : public Vec<FP16Vec8> {
+  constexpr static int VEC_ELEM_NUM = 8;
+
+  __vector signed short reg;
+
+  explicit FP16Vec8(const void* ptr) : reg(*(__vector signed short*)ptr) {}
+  explicit FP16Vec8(const FP32Vec8&);
+
+  void save(void* ptr) const {
+    *reinterpret_cast<__vector signed short*>(ptr) = reg;
+  }
+};
+
+struct FP16Vec16 : public Vec<FP16Vec16> {
+  constexpr static int VEC_ELEM_NUM = 16;
+  ss16x8x2_t reg;
+
+  explicit FP16Vec16(const void* ptr) {
+    reg.val[0] = (__vector signed short)vec_xl(0, (signed short*)ptr);
+    reg.val[1] = (__vector signed short)vec_xl(16, (signed short*)ptr);
+  }
+
+  explicit FP16Vec16(bool, const void* ptr) : FP16Vec16(ptr) {}
+
+  explicit FP16Vec16(const FP32Vec16&);
+
+  void save(void* ptr) const {
+    vec_xst(reg.val[0], 0, (signed short*)ptr);
+    vec_xst(reg.val[1], 16, (signed short*)ptr);
+  }
+
+  void save(void* ptr, int elem_num) const {
+    int num = std::max(0, std::min(elem_num, VEC_ELEM_NUM));
+    if (num <= 8) {
+      vec_xst_len(reg.val[0], (signed short*)ptr, num * 2);
+    } else {
+      vec_xst(reg.val[0], 0, (signed short*)ptr);
+      vec_xst_len(reg.val[1], (signed short*)ptr + 8, (num - 8) * 2);
+    }
+  }
+};
+
 struct BF16Vec16 : public Vec<BF16Vec16> {
   constexpr static int VEC_ELEM_NUM = 16;
 
   ss16x8x2_t reg;
 
   explicit BF16Vec16(const void* ptr) {
-    // Load 256 bits in two parts
     reg.val[0] = (__vector signed short)vec_xl(0, (signed short*)ptr);
     reg.val[1] = (__vector signed short)vec_xl(16, (signed short*)ptr);
   }
 
+  explicit BF16Vec16(bool, const void* ptr) : BF16Vec16(ptr) {}
   explicit BF16Vec16(const FP32Vec16&);
 
   void save(void* ptr) const {
     // Save 256 bits in two parts
     vec_xst(reg.val[0], 0, (signed short*)ptr);
     vec_xst(reg.val[1], 16, (signed short*)ptr);
+  }
+
+  void save(void* ptr, const int elem_num) const {
+    const int clamped_elem = std::max(0, std::min(elem_num, 16));
+
+    const int elements_val0 = std::min(clamped_elem, 8);
+    const int elements_val1 = std::max(clamped_elem - 8, 0);
+
+    const size_t bytes_val0 = elements_val0 * sizeof(signed short);
+    const size_t bytes_val1 = elements_val1 * sizeof(signed short);
+
+    signed short* dest = static_cast<signed short*>(ptr);
+    if (bytes_val0 > 0) {
+      vec_xst_len(reg.val[0], dest, bytes_val0);
+    }
+    if (bytes_val1 > 0) {
+      vec_xst_len(reg.val[1], dest + elements_val0, bytes_val1);
+    }
   }
 };
 
@@ -115,6 +265,9 @@ struct BF16Vec32 : public Vec<BF16Vec32> {
       : reg({vec8_data.reg, vec8_data.reg, vec8_data.reg, vec8_data.reg}) {}
 
   void save(void* ptr) const { *reinterpret_cast<ss16x8x4_t*>(ptr) = reg; }
+
+  explicit BF16Vec32(const uint8_t*, fp8_e4m3_tag) : reg{} {}
+  explicit BF16Vec32(const uint8_t*, fp8_e5m2_tag) : reg{} {}
 };
 
 struct FP32Vec4 : public Vec<FP32Vec4> {
@@ -173,6 +326,15 @@ struct FP32Vec8 : public Vec<FP32Vec8> {
     reg.val[1] = (__vector float)vec_mergel(zero, v.reg);
   }
 
+  explicit FP32Vec8(const FP16Vec8& v) {
+    __vector unsigned short raw_u = (__vector unsigned short)v.reg;
+    __vector unsigned int raw_hi =
+        (__vector unsigned int)vec_unpackh((__vector signed short)raw_u);
+    __vector unsigned int raw_lo =
+        (__vector unsigned int)vec_unpackl((__vector signed short)raw_u);
+    reg.val[0] = fp16_to_fp32_bits(raw_hi);
+    reg.val[1] = fp16_to_fp32_bits(raw_lo);
+  }
   float reduce_sum() const {
     AliasReg ar;
     ar.reg = reg;
@@ -257,6 +419,64 @@ struct FP32Vec8 : public Vec<FP32Vec8> {
   }
 };
 
+struct INT32Vec16 : public Vec<INT32Vec16> {
+  constexpr static int VEC_ELEM_NUM = 16;
+  union AliasReg {
+    i32x4x4_t reg;
+    int32_t values[VEC_ELEM_NUM];
+  };
+
+  i32x4x4_t reg;
+
+  explicit INT32Vec16(const void* data_ptr) {
+    reg.val[0] = vec_xl(0, reinterpret_cast<const __vector int32_t*>(data_ptr));
+    reg.val[1] =
+        vec_xl(16, reinterpret_cast<const __vector int32_t*>(data_ptr));
+    reg.val[2] =
+        vec_xl(32, reinterpret_cast<const __vector int32_t*>(data_ptr));
+    reg.val[3] =
+        vec_xl(48, reinterpret_cast<const __vector int32_t*>(data_ptr));
+  }
+
+  void save(int32_t* ptr) const {
+    vec_xst(reg.val[0], 0, reinterpret_cast<__vector int32_t*>(ptr));
+    vec_xst(reg.val[1], 16, reinterpret_cast<__vector int32_t*>(ptr));
+    vec_xst(reg.val[2], 32, reinterpret_cast<__vector int32_t*>(ptr));
+    vec_xst(reg.val[3], 48, reinterpret_cast<__vector int32_t*>(ptr));
+  }
+
+  void save(int32_t* ptr, const int elem_num) const {
+    const int elements_in_chunk1 =
+        (elem_num >= 0) ? ((elem_num >= 4) ? 4 : elem_num) : 0;
+    const int elements_in_chunk2 =
+        (elem_num > 4) ? ((elem_num >= 8) ? 4 : elem_num - 4) : 0;
+    const int elements_in_chunk3 =
+        (elem_num > 8) ? ((elem_num >= 12) ? 4 : elem_num - 8) : 0;
+    const int elements_in_chunk4 =
+        (elem_num > 12) ? ((elem_num >= 16) ? 4 : elem_num - 12) : 0;
+
+    const size_t bytes_chunk1 =
+        static_cast<size_t>(elements_in_chunk1 * sizeof(int32_t));
+    const size_t bytes_chunk2 =
+        static_cast<size_t>(elements_in_chunk2 * sizeof(int32_t));
+    const size_t bytes_chunk3 =
+        static_cast<size_t>(elements_in_chunk3 * sizeof(int32_t));
+    const size_t bytes_chunk4 =
+        static_cast<size_t>(elements_in_chunk4 * sizeof(int32_t));
+
+    vec_xst_len(reg.val[0], reinterpret_cast<int32_t*>(ptr), bytes_chunk1);
+    vec_xst_len(reg.val[1],
+                reinterpret_cast<int32_t*>(reinterpret_cast<char*>(ptr) + 16),
+                bytes_chunk2);
+    vec_xst_len(reg.val[2],
+                reinterpret_cast<int32_t*>(reinterpret_cast<char*>(ptr) + 32),
+                bytes_chunk3);
+    vec_xst_len(reg.val[3],
+                reinterpret_cast<int32_t*>(reinterpret_cast<char*>(ptr) + 48),
+                bytes_chunk4);
+  }
+};
+
 struct FP32Vec16 : public Vec<FP32Vec16> {
   constexpr static int VEC_ELEM_NUM = 16;
   union AliasReg {
@@ -287,6 +507,9 @@ struct FP32Vec16 : public Vec<FP32Vec16> {
     reg.val[3] = vec_xl(48, ptr);
   }
 
+  explicit FP32Vec16(const c10::Half* ptr) : FP32Vec16(FP16Vec16(ptr)) {}
+  explicit FP32Vec16(const FP16Vec16&);
+  explicit FP32Vec16(bool, const float* ptr) : FP32Vec16(ptr) {}
   explicit FP32Vec16(f32x4x4_t data) : reg(data) {}
 
   explicit FP32Vec16(const FP32Vec16& data) {
@@ -319,6 +542,17 @@ struct FP32Vec16 : public Vec<FP32Vec16> {
 
   explicit FP32Vec16(const BF16Vec8& v) : FP32Vec16(FP32Vec8(v)) {}
 
+  // FP8 stub: dead code on PowerPC (fp8 KV cache is x86-only), needed for
+  // load_b_pair_vec template to compile on all platforms.
+  explicit FP32Vec16(const BF16Vec32&, int) : reg{} {}
+
+  explicit FP32Vec16(const INT32Vec16& v) {
+    reg.val[0] = vec_ctf(v.reg.val[0], 0);
+    reg.val[1] = vec_ctf(v.reg.val[1], 0);
+    reg.val[2] = vec_ctf(v.reg.val[2], 0);
+    reg.val[3] = vec_ctf(v.reg.val[3], 0);
+  }
+
   FP32Vec16 operator*(const FP32Vec16& b) const {
     return FP32Vec16(f32x4x4_t({vec_mul(reg.val[0], b.reg.val[0]),
                                 vec_mul(reg.val[1], b.reg.val[1]),
@@ -345,6 +579,109 @@ struct FP32Vec16 : public Vec<FP32Vec16> {
                                 vec_div(reg.val[1], b.reg.val[1]),
                                 vec_div(reg.val[2], b.reg.val[2]),
                                 vec_div(reg.val[3], b.reg.val[3])}));
+  }
+
+  FP32Vec16 clamp(const FP32Vec16& min, const FP32Vec16& max) const {
+    return FP32Vec16(f32x4x4_t(
+        {vec_min(max.reg.val[0], vec_max(min.reg.val[0], reg.val[0])),
+         vec_min(max.reg.val[1], vec_max(min.reg.val[1], reg.val[1])),
+         vec_min(max.reg.val[2], vec_max(min.reg.val[2], reg.val[2])),
+         vec_min(max.reg.val[3], vec_max(min.reg.val[3], reg.val[3]))}));
+  }
+
+  FP32Vec16 max(const FP32Vec16& b) const {
+    return FP32Vec16(f32x4x4_t({vec_max(reg.val[0], b.reg.val[0]),
+                                vec_max(reg.val[1], b.reg.val[1]),
+                                vec_max(reg.val[2], b.reg.val[2]),
+                                vec_max(reg.val[3], b.reg.val[3])}));
+  }
+
+  FP32Vec16 max(const FP32Vec16& b, int elem_num) const {
+    FP32Vec16 result;
+
+    __vector unsigned int indices = {0, 1, 2, 3};
+    __vector unsigned int elem_num_vec =
+        vec_splats(static_cast<unsigned int>(elem_num));
+
+    __vector unsigned int chunk_offset0 = {0, 0, 0, 0};
+    __vector unsigned int chunk_offset1 = {4, 4, 4, 4};
+    __vector unsigned int chunk_offset2 = {8, 8, 8, 8};
+    __vector unsigned int chunk_offset3 = {12, 12, 12, 12};
+
+    __vector bool int mask0 = vec_cmplt(indices + chunk_offset0, elem_num_vec);
+    __vector bool int mask1 = vec_cmplt(indices + chunk_offset1, elem_num_vec);
+    __vector bool int mask2 = vec_cmplt(indices + chunk_offset2, elem_num_vec);
+    __vector bool int mask3 = vec_cmplt(indices + chunk_offset3, elem_num_vec);
+
+    result.reg.val[0] = vec_sel(this->reg.val[0],
+                                vec_max(this->reg.val[0], b.reg.val[0]), mask0);
+    result.reg.val[1] = vec_sel(this->reg.val[1],
+                                vec_max(this->reg.val[1], b.reg.val[1]), mask1);
+    result.reg.val[2] = vec_sel(this->reg.val[2],
+                                vec_max(this->reg.val[2], b.reg.val[2]), mask2);
+    result.reg.val[3] = vec_sel(this->reg.val[3],
+                                vec_max(this->reg.val[3], b.reg.val[3]), mask3);
+
+    return FP32Vec16(result.reg);
+  }
+
+  FP32Vec16 min(const FP32Vec16& b) const {
+    return FP32Vec16(f32x4x4_t({vec_min(reg.val[0], b.reg.val[0]),
+                                vec_min(reg.val[1], b.reg.val[1]),
+                                vec_min(reg.val[2], b.reg.val[2]),
+                                vec_min(reg.val[3], b.reg.val[3])}));
+  }
+
+  FP32Vec16 min(const FP32Vec16& b, int elem_num) const {
+    FP32Vec16 result;
+
+    vector unsigned int indices = {0, 1, 2, 3};
+    vector unsigned int elem_num_vec =
+        vec_splats(static_cast<unsigned int>(elem_num));
+
+    vector unsigned int chunk_offset0 = {0, 0, 0, 0};
+    vector unsigned int chunk_offset1 = {4, 4, 4, 4};
+    vector unsigned int chunk_offset2 = {8, 8, 8, 8};
+    vector unsigned int chunk_offset3 = {12, 12, 12, 12};
+
+    vector bool int mask0 = vec_cmplt(indices + chunk_offset0, elem_num_vec);
+    vector bool int mask1 = vec_cmplt(indices + chunk_offset1, elem_num_vec);
+    vector bool int mask2 = vec_cmplt(indices + chunk_offset2, elem_num_vec);
+    vector bool int mask3 = vec_cmplt(indices + chunk_offset3, elem_num_vec);
+
+    result.reg.val[0] = vec_sel(this->reg.val[0],
+                                vec_min(this->reg.val[0], b.reg.val[0]), mask0);
+    result.reg.val[1] = vec_sel(this->reg.val[1],
+                                vec_min(this->reg.val[1], b.reg.val[1]), mask1);
+    result.reg.val[2] = vec_sel(this->reg.val[2],
+                                vec_min(this->reg.val[2], b.reg.val[2]), mask2);
+    result.reg.val[3] = vec_sel(this->reg.val[3],
+                                vec_min(this->reg.val[3], b.reg.val[3]), mask3);
+
+    return FP32Vec16(result.reg);
+  }
+
+  FP32Vec16 abs() const {
+    return FP32Vec16(f32x4x4_t({vec_abs(reg.val[0]), vec_abs(reg.val[1]),
+                                vec_abs(reg.val[2]), vec_abs(reg.val[3])}));
+  }
+
+  float reduce_max() {
+    __vector float max01 = vec_max(reg.val[0], reg.val[1]);
+    __vector float max23 = vec_max(reg.val[2], reg.val[3]);
+    __vector float max_all = vec_max(max01, max23);
+    __vector float temp = vec_max(max_all, vec_sld(max_all, max_all, 8));
+    temp = vec_max(temp, vec_sld(temp, temp, 4));
+    return vec_extract(temp, 0);
+  }
+
+  float reduce_min() {
+    __vector float min01 = vec_min(reg.val[0], reg.val[1]);
+    __vector float min23 = vec_min(reg.val[2], reg.val[3]);
+    __vector float min_all = vec_min(min01, min23);
+    __vector float temp = vec_min(min_all, vec_sld(min_all, min_all, 8));
+    temp = vec_min(temp, vec_sld(temp, temp, 4));
+    return vec_extract(temp, 0);
   }
 
   float reduce_sum() const {
@@ -377,6 +714,78 @@ struct FP32Vec16 : public Vec<FP32Vec16> {
     vec_xst(reg.val[2], 32, ptr);
     vec_xst(reg.val[3], 48, ptr);
   }
+
+  void save(c10::Half* ptr) const {
+    FP16Vec16 fp16_vec(*this);
+    fp16_vec.save(ptr);
+  }
+
+  void save(c10::Half* ptr, const int elem_num) const {
+    FP16Vec16 fp16_vec(*this);
+    fp16_vec.save(ptr, elem_num);
+  }
+
+  void save(float* ptr, const int elem_num) const {
+    const int elements_in_chunk1 =
+        (elem_num >= 0) ? ((elem_num >= 4) ? 4 : elem_num) : 0;
+    const int elements_in_chunk2 =
+        (elem_num > 4) ? ((elem_num >= 8) ? 4 : elem_num - 4) : 0;
+    const int elements_in_chunk3 =
+        (elem_num > 8) ? ((elem_num >= 12) ? 4 : elem_num - 8) : 0;
+    const int elements_in_chunk4 =
+        (elem_num > 12) ? ((elem_num >= 16) ? 4 : elem_num - 12) : 0;
+
+    const size_t bytes_chunk1 =
+        static_cast<size_t>(elements_in_chunk1 * sizeof(float));
+    const size_t bytes_chunk2 =
+        static_cast<size_t>(elements_in_chunk2 * sizeof(float));
+    const size_t bytes_chunk3 =
+        static_cast<size_t>(elements_in_chunk3 * sizeof(float));
+    const size_t bytes_chunk4 =
+        static_cast<size_t>(elements_in_chunk4 * sizeof(float));
+
+    vec_xst_len(reg.val[0], ptr, bytes_chunk1);
+    vec_xst_len(reg.val[1],
+                reinterpret_cast<float*>(reinterpret_cast<char*>(ptr) + 16),
+                bytes_chunk2);
+    vec_xst_len(reg.val[2],
+                reinterpret_cast<float*>(reinterpret_cast<char*>(ptr) + 32),
+                bytes_chunk3);
+    vec_xst_len(reg.val[3],
+                reinterpret_cast<float*>(reinterpret_cast<char*>(ptr) + 48),
+                bytes_chunk4);
+  }
+};
+
+struct INT8Vec16 : public Vec<INT8Vec16> {
+  constexpr static int VEC_NUM_ELEM = 16;
+
+  union AliasReg {
+    __vector signed char reg;
+    int8_t values[VEC_NUM_ELEM];
+  };
+
+  __vector signed char reg;
+
+  explicit INT8Vec16(const FP32Vec16& vec) {
+    __vector signed int ret[4];
+    ret[0] = vec_cts(vec.reg.val[0], 0);
+    ret[1] = vec_cts(vec.reg.val[1], 0);
+    ret[2] = vec_cts(vec.reg.val[2], 0);
+    ret[3] = vec_cts(vec.reg.val[3], 0);
+
+    __vector signed short packed1 = vec_packs(ret[0], ret[1]);
+    __vector signed short packed2 = vec_packs(ret[2], ret[3]);
+
+    reg = vec_packs(packed1, packed2);
+  }
+
+  void save(void* ptr) const {
+    *reinterpret_cast<__vector signed char*>(ptr) = reg;
+  }
+  void save(signed char* ptr, const int elem_num) {
+    vec_xst_len(reg, ptr, static_cast<size_t>(elem_num));
+  }
 };
 
 template <typename T>
@@ -397,6 +806,11 @@ struct VecType<c10::BFloat16> {
   using vec_type = BF16Vec8;
 };
 
+template <>
+struct VecType<c10::Half> {
+  using vec_type = FP16Vec8;
+};
+
 template <typename T>
 void storeFP32(float v, T* ptr) {
   *ptr = v;
@@ -411,6 +825,15 @@ inline void storeFP32<c10::BFloat16>(float v, c10::BFloat16* ptr) {
   c10::BFloat16 __attribute__((__may_alias__))* v_ptr =
       reinterpret_cast<c10::BFloat16*>(&v);
   *ptr = *(v_ptr + 1);
+}
+
+template <>
+inline void storeFP32<c10::Half>(float v, c10::Half* ptr) {
+  __vector float v_vec = {v, 0.0f, 0.0f, 0.0f};
+  __vector unsigned int fp16_bits = fp32_to_fp16_bits(v_vec);
+  unsigned short result =
+      (unsigned short)((__vector unsigned short)fp16_bits)[0];
+  *reinterpret_cast<unsigned short*>(ptr) = result;
 }
 
 #ifndef __VEC_CLASS_FP_NAN
@@ -457,6 +880,41 @@ inline BF16Vec8::BF16Vec8(const FP32Vec8& v) {
   inp1 = vec_sr(inp1, sh16);
   reg = (__vector signed short)vec_perm(inp0, inp1, omask);
 #endif
+}
+
+inline FP16Vec8::FP16Vec8(const FP32Vec8& v) {
+  __vector unsigned int fp16_hi = fp32_to_fp16_bits(v.reg.val[0]);
+  __vector unsigned int fp16_lo = fp32_to_fp16_bits(v.reg.val[1]);
+  reg = (__vector signed short)vec_perm((__vector unsigned char)fp16_hi,
+                                        (__vector unsigned char)fp16_lo, omask);
+}
+
+inline FP16Vec16::FP16Vec16(const FP32Vec16& v) {
+  __vector unsigned int fp16_0 = fp32_to_fp16_bits(v.reg.val[0]);
+  __vector unsigned int fp16_1 = fp32_to_fp16_bits(v.reg.val[1]);
+  __vector unsigned int fp16_2 = fp32_to_fp16_bits(v.reg.val[2]);
+  __vector unsigned int fp16_3 = fp32_to_fp16_bits(v.reg.val[3]);
+  reg.val[0] = (__vector signed short)vec_perm(
+      (__vector unsigned char)fp16_0, (__vector unsigned char)fp16_1, omask);
+  reg.val[1] = (__vector signed short)vec_perm(
+      (__vector unsigned char)fp16_2, (__vector unsigned char)fp16_3, omask);
+}
+
+inline FP32Vec16::FP32Vec16(const FP16Vec16& v) {
+  __vector unsigned short raw_u0 = (__vector unsigned short)v.reg.val[0];
+  __vector unsigned short raw_u1 = (__vector unsigned short)v.reg.val[1];
+  __vector unsigned int raw_hi0 =
+      (__vector unsigned int)vec_unpackh((__vector signed short)raw_u0);
+  __vector unsigned int raw_lo0 =
+      (__vector unsigned int)vec_unpackl((__vector signed short)raw_u0);
+  __vector unsigned int raw_hi1 =
+      (__vector unsigned int)vec_unpackh((__vector signed short)raw_u1);
+  __vector unsigned int raw_lo1 =
+      (__vector unsigned int)vec_unpackl((__vector signed short)raw_u1);
+  reg.val[0] = fp16_to_fp32_bits(raw_hi0);
+  reg.val[1] = fp16_to_fp32_bits(raw_lo0);
+  reg.val[2] = fp16_to_fp32_bits(raw_hi1);
+  reg.val[3] = fp16_to_fp32_bits(raw_lo1);
 }
 
 inline BF16Vec16::BF16Vec16(const FP32Vec16& v) {
@@ -518,6 +976,41 @@ inline void prefetch(const void* addr) {
   __asm__ __volatile__("dcbt 0, %0" : : "r"(addr) : "memory");
 }
 
-};  // namespace vec_op
+struct INT8Vec64 {
+  __vector signed char data[4];
+  INT8Vec64() = default;
 
+  explicit INT8Vec64(const int8_t* ptr) {
+    data[0] = vec_xl(0, ptr);
+    data[1] = vec_xl(16, ptr);
+    data[2] = vec_xl(32, ptr);
+    data[3] = vec_xl(48, ptr);
+  }
+
+  explicit INT8Vec64(bool, const int8_t* ptr) : INT8Vec64(ptr) {}
+
+  void save(int8_t* ptr) const {
+    vec_xst(data[0], 0, ptr);
+    vec_xst(data[1], 16, ptr);
+    vec_xst(data[2], 32, ptr);
+    vec_xst(data[3], 48, ptr);
+  }
+
+  void save(int8_t* ptr, int elem_num) const {
+    if (elem_num <= 0) return;
+
+    int full_vecs = elem_num / 16;
+    for (int i = 0; i < full_vecs && i < 4; i++) {
+      vec_xst(data[i], i * 16, ptr);
+    }
+
+    int remaining = elem_num % 16;
+    if (remaining > 0 && full_vecs < 4) {
+      vec_xst_len(data[full_vecs], ptr + full_vecs * 16, remaining);
+    }
+  }
+
+  void nt_save(int8_t* ptr) const { save(ptr); }
+};
+}  // namespace vec_op
 #endif
